@@ -7,12 +7,17 @@ else:
     import urlparse
 
 
+NORMAL_FEED = 1
+FEED_IN_SOURCE = 2
+
+
 class FeedSocket(object):
 
     just_received = ''
+    received = ''
     content = ''
 
-    def __init__(self, feed_url):
+    def __init__(self, feed_url, feed_type=NORMAL_FEED, feed_generator=None):
         try:
             self.url = feed_url
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,6 +38,11 @@ class FeedSocket(object):
 
     def recv(self, length):
         return self.sock.recv(length)
+
+    @property
+    def content(self):
+        return self.recived[self.received.find('<'):
+                            self.received.rfind('>')+1]
 
 
 def generator(feed_list):
@@ -70,13 +80,18 @@ def generator(feed_list):
                 for feed in r:
                     just_received = feed.recv(4096)
                     if just_received:
-                        feed.content = feed.content + just_received
+                        feed.received = feed.received + just_received
                     else:
                         finished.append(feed)
                         has_finished = True
             for feed in finished:
                 reading_pool.remove(feed)
-                yield feed
+                if feed.feed_type == NORMAL_FEED:
+                    url, parser = yield feed.content
+                    if url:
+                        feeds.append(FeedSocket(url, FEED_IN_SOURCE, parser))
+                elif feed.feed_type == FEED_IN_SOURCE:
+                    feed.parser_generator.send(feed.content)
 
 
 class ConnectError(Exception):

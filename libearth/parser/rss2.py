@@ -5,11 +5,6 @@ Parsing RSS 2.0 feed.
 
 """
 try:
-    import urllib2
-except ImportError:
-    import urllib.request as urllib2
-
-try:
     from lxml import etree
 except ImportError:
     try:
@@ -17,9 +12,12 @@ except ImportError:
     except ImportError:
         from xml.etree import ElementTree as etree
 
+from .common import FEED, SOURCE_URL
 from ..codecs import Rfc822
 from ..feed import (Category, Content, Entry, Feed, Generator, Link,
                     Person, Text)
+
+ENTRY = 3
 
 
 def parse_rss(xml, feed_url=None, parse_entry=True):
@@ -40,13 +38,20 @@ def parse_rss(xml, feed_url=None, parse_entry=True):
     items = channel.findall('item')
     feed_data, crawler_hint = rss_get_channel_data(channel)
     if parse_entry:
-        feed_data.entries = rss_get_item_data(items)
-    return feed_data, crawler_hint
+        entry_generator = rss_get_item_data(items)
+        for data in entry_generator:
+            if data[0] == ENTRY:
+                feed_data.entry = data[1]
+                crawler_hint = data[2]
+            elif data[0] == SOURCE_URL:
+                xml = yield data[1]
+                entry_generator.send(xml)
+    yield FEED, feed_data, crawler_hint
 
 
 def rss_get_channel_data(root):
     feed_data = Feed()
-    data_for_crawl = {}
+    crawler_hint = {}
     contributors = []
     for data in root:
         if data.tag == 'title':
@@ -90,16 +95,16 @@ def rss_get_channel_data(root):
             generator.value = data.text
             feed_data.generator = generator
         elif data.tag == 'lastBuildDate':
-            data_for_crawl['lastBuildDate'] = Rfc822().decode(data.text)
+            crawler_hint['lastBuildDate'] = Rfc822().decode(data.text)
         elif data.tag == 'ttl':
-            data_for_crawl['ttl'] = data.text
+            crawler_hint['ttl'] = data.text
         elif data.tag == 'skipHours':
-            data_for_crawl['skipHours'] = data.text
+            crawler_hint['skipHours'] = data.text
         elif data.tag == 'skipMinutes':
-            data_for_crawl['skipMinutes'] = data.text
+            crawler_hint['skipMinutes'] = data.text
         elif data.tag == 'skipDays':
-            data_for_crawl['skipDays'] = data.text
-    return feed_data, data_for_crawl
+            crawler_hint['skipDays'] = data.text
+    return feed_data, crawler_hint
 
 
 def rss_get_item_data(entries):
@@ -147,15 +152,11 @@ def rss_get_item_data(entries):
             elif data.tag == 'pubDate':
                 entry_data.published = Rfc822().decode(data.text)
             elif data.tag == 'source':
-                from .heuristic import get_document_type, get_parser
-                source = {}
+                from .heuristic import get_document_type
                 url = data.get('url')
-                request = urllib2.Request(url)
-                f = urllib2.urlopen(request)
-                xml = f.read()
-                document_type = get_document_type(xml)
-                parser = get_parser(document_type)
-                source, _ = parser(xml, parse_entry=False)
+                xml = yield SOURCE_URL, url
+                format = get_document_type(xml)
+                source, _ = format(xml, parse_entry=False)
                 entry_data.source = source
         entries_data.append(entry_data)
-    return entries_data
+    yield ENTRY,  entries_data

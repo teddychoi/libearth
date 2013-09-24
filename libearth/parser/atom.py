@@ -21,6 +21,7 @@ except ImportError:
     except ImportError:
         from xml.etree import ElementTree as etree
 
+from .common import FEED
 from ..codecs import Rfc3339
 from ..feed import (Category, Content, Entry, Feed, Generator, Link,
                     Person, Source, Text)
@@ -59,7 +60,7 @@ def parse_atom(xml, feed_url, parse_entry=True):
     if parse_entry:
         entries_data = atom_get_entry_data(entries, feed_url)
         feed_data.entries = entries_data
-    return feed_data, None
+    yield FEED, feed_data, None
 
 
 def atom_parse_text_construct(data):

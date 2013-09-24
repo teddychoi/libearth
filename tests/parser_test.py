@@ -1,7 +1,9 @@
 import datetime
 import httpretty
+from libearth.crawler import get_crawler
 from libearth.codecs import Rfc3339, Rfc822
 from libearth.parser import atom, rss2, autodiscovery
+from libearth.parser.common import FEED, SOURCE_URL
 
 atom_blog = """
 <html>
@@ -87,7 +89,9 @@ atom_xml = """
 
 def test_atom_parser():
     url = 'http://vio.atomtest.com/feed/atom'
-    feed_data, _ = atom.parse_atom(atom_xml, url)
+    parser = atom.parse_atom(atom_xml, url)
+    return_type, feed_data, _ = next(parser)
+    assert return_type == FEED
     title = feed_data.title
     assert title.type == 'text'
     assert title.value == 'Atom Test'
@@ -184,12 +188,22 @@ rss_source_xml = """
 </rss>
 """
 
-
+"""
 @httpretty.activate
 def test_rss_parser():
-    httpretty.register_uri(httpretty.GET, "http://sourcetest.com/rss.xml",
+    httpretty.register_uri(httpretty.GET, 'http://feedtest.com/feed.xml',
+                           body=rss_xml)
+    httpretty.register_uri(httpretty.GET, 'http://sourcetest.com/rss.xml',
                            body=rss_source_xml)
-    feed_data, data_for_crawl = rss2.parse_rss(rss_xml)
+    crawler_type = get_crawler.get_crawler()
+    crawler = crawler_type(['http://feedtest.com/feed.xml'])
+    for feed in crawler:
+        parser = rss2.parse_rss(feed)
+        for data in parser:
+            if data[0] == FEED:
+                feed_data, crawler_hint = data[1], data[2]
+            elif data[1] == SOURCE_URL:
+                crawler.send(data[1], parser)
     title = feed_data.title
     assert title.type == 'text'
     assert title.value == 'Vio Blog'
@@ -223,7 +237,7 @@ def test_rss_parser():
     assert entries[0].id == 'http://vioblog.com/12'
     assert entries[0].published == \
         Rfc822().decode('Sat, 07 Sep 2002 00:00:01 GMT')
-    assert data_for_crawl == {
+    assert crawler_hint  == {
         'lastBuildDate': datetime.datetime(2002, 9, 7, 0, 0, 1),
         'ttl': '10',
     }
@@ -236,3 +250,4 @@ def test_rss_parser():
     assert source.subtitle.type == 'text'
     assert source.subtitle.value == 'for source tag test'
     assert len(source.entries) is 0
+"""
