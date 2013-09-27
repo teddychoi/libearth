@@ -1,9 +1,13 @@
 import datetime
-import httpretty
+import socket
+import threading
+
 from libearth.crawler import get_crawler
 from libearth.codecs import Rfc3339, Rfc822
 from libearth.parser import atom, rss2, autodiscovery
 from libearth.parser.common import FEED, SOURCE_URL
+
+from pytest import fixture
 
 atom_blog = """
 <html>
@@ -188,22 +192,67 @@ rss_source_xml = """
 </rss>
 """
 
-"""
-@httpretty.activate
-def test_rss_parser():
-    httpretty.register_uri(httpretty.GET, 'http://feedtest.com/feed.xml',
-                           body=rss_xml)
-    httpretty.register_uri(httpretty.GET, 'http://sourcetest.com/rss.xml',
-                           body=rss_source_xml)
+
+@fixture
+def feedservers(request):
+
+    def feed_server():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', 3000))
+        s.listen(1)
+        while 1:
+            client, address = s.accept()
+            received = client.recv(1000)
+            while(not received.endswith('\r\n\r\n')):
+                received = received + client.recv(1000)
+            len_sent = client.send(rss_xml)
+            while(len_sent != len(rss_xml)):
+                len_sent = len_sent + client.send(rss_xml[len_sent:])
+            break
+        s.close()
+        client.close()
+
+    def source_server():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', 4000))
+        s.listen(1)
+        while 1:
+            client, address = s.accept()
+            received = client.recv(1000)
+            while not received.endswith('\r\n\r\n'):
+                received = received + client.recv(1000)
+            len_sent = client.send(rss_source_xml)
+            while(len_sent != len(rss_source_xml)):
+                len_sent = len_sent + client.send(rss_xml[len_sent:])
+            break
+        s.close()
+        client.close()
+
+    feed = threading.Thread(target=feed_server)
+    source = threading.Thread(target=source_server)
+    feed.start()
+    source.start()
+
+    def finalizer():
+        feed.join(timeout=0.0)
+        source.join(timeout=0.0)
+
+    request.addfinalizer(finalizer)
+
+
+def test_rss_parser(feedservers):
     crawler_type = get_crawler.get_crawler()
-    crawler = crawler_type(['http://feedtest.com/feed.xml'])
+    hosts_hook_table = {'feedtest.com': ('127.0.0.1', 3000),
+                        'sourcetest.com': ('127.0.0.1', 4000)}
+    crawler = crawler_type(['http://feedtest.com/feed.xml'],
+                           hosts_hook_table=hosts_hook_table)
     for feed in crawler:
         parser = rss2.parse_rss(feed)
         for data in parser:
             if data[0] == FEED:
                 feed_data, crawler_hint = data[1], data[2]
-            elif data[1] == SOURCE_URL:
-                crawler.send(data[1], parser)
+            elif data[0] == SOURCE_URL:
+                _, feed_data, crawler_hint = crawler.send((data[1], parser))
     title = feed_data.title
     assert title.type == 'text'
     assert title.value == 'Vio Blog'
@@ -237,7 +286,7 @@ def test_rss_parser():
     assert entries[0].id == 'http://vioblog.com/12'
     assert entries[0].published == \
         Rfc822().decode('Sat, 07 Sep 2002 00:00:01 GMT')
-    assert crawler_hint  == {
+    assert crawler_hint == {
         'lastBuildDate': datetime.datetime(2002, 9, 7, 0, 0, 1),
         'ttl': '10',
     }
@@ -250,4 +299,3 @@ def test_rss_parser():
     assert source.subtitle.type == 'text'
     assert source.subtitle.value == 'for source tag test'
     assert len(source.entries) is 0
-"""

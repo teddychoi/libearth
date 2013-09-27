@@ -35,17 +35,17 @@ def parse_rss(xml, feed_url=None, parse_entry=True):
     """
     root = etree.fromstring(xml)
     channel = root.find('channel')
-    items = channel.findall('item')
     feed_data, crawler_hint = rss_get_channel_data(channel)
     if parse_entry:
+        items = channel.findall('item')
         entry_generator = rss_get_item_data(items)
         for data in entry_generator:
             if data[0] == ENTRY:
-                feed_data.entry = data[1]
-                crawler_hint = data[2]
+                feed_data.entries = data[1]
             elif data[0] == SOURCE_URL:
-                xml = yield data[1]
-                entry_generator.send(xml)
+                xml = yield data[0], data[1]
+                dump = entry_generator.send(xml)
+                feed_data.entries = dump[1]
     yield FEED, feed_data, crawler_hint
 
 
@@ -156,7 +156,9 @@ def rss_get_item_data(entries):
                 url = data.get('url')
                 xml = yield SOURCE_URL, url
                 format = get_document_type(xml)
-                source, _ = format(xml, parse_entry=False)
-                entry_data.source = source
+                parser = format(xml, parse_entry=False)
+                for _, source, _ in parser:
+                    entry_data.source = source
+                print 'source parsing finished'
         entries_data.append(entry_data)
-    yield ENTRY,  entries_data
+    yield ENTRY, entries_data

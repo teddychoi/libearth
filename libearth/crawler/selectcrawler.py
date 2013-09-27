@@ -13,18 +13,24 @@ FEED_IN_SOURCE = 2
 
 class FeedSocket(object):
 
-    just_received = ''
-    received = ''
-    content = ''
-
-    def __init__(self, feed_url, feed_type=NORMAL_FEED, feed_generator=None):
+    def __init__(self, feed_url, feed_type=NORMAL_FEED, parser=None,
+                 hosts_hook_table=None):
         try:
+            self.received = ''
             self.url = feed_url
+            self.feed_type = feed_type
+            self.parser = parser
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             url_parsed = urlparse.urlparse(feed_url)
             host = url_parsed.netloc
+            if host in hosts_hook_table:
+                dst = hosts_hook_table[host][0]
+                port = hosts_hook_table[host][1]
+            else:
+                dst = host
+                port = 80
             path = url_parsed.path
-            self.connect((host, 80))
+            self.connect((dst, port))
             send_buffer = ('GET %s HTTP/1.1\r\n' % path +
                            'Host: %s\r\n\r\n' % host)
             sent_len = 0
@@ -39,20 +45,19 @@ class FeedSocket(object):
     def recv(self, length):
         return self.sock.recv(length)
 
-    @property
     def content(self):
-        return self.recived[self.received.find('<'):
-                            self.received.rfind('>')+1]
+        return self.received[self.received.find('<'):
+                             self.received.rfind('>')+1]
 
 
-def generator(feed_list):
+def generator(feed_list, hosts_hook_table=None):
     feeds = []
     reading_pool = []
     for feed in feed_list:
-        feeds.append(FeedSocket(feed))
+        feeds.append(FeedSocket(feed, hosts_hook_table=hosts_hook_table))
     while feeds or reading_pool:
-        if len(reading_pool) is not 2:
-            while len(reading_pool) is not 2:
+        if len(reading_pool) != 2:
+            while len(reading_pool) != 2:
                 if feeds:
                     r, _, _ = select.select(feeds, [], [], 0.5)
                     if not r:
@@ -87,11 +92,12 @@ def generator(feed_list):
             for feed in finished:
                 reading_pool.remove(feed)
                 if feed.feed_type == NORMAL_FEED:
-                    url, parser = yield feed.content
+                    url, parser = yield feed.content()
                     if url:
-                        feeds.append(FeedSocket(url, FEED_IN_SOURCE, parser))
+                        feeds.append(FeedSocket(url, FEED_IN_SOURCE, parser,
+                                                hosts_hook_table))
                 elif feed.feed_type == FEED_IN_SOURCE:
-                    feed.parser_generator.send(feed.content)
+                    yield feed.parser.send(feed.content())
 
 
 class ConnectError(Exception):
