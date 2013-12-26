@@ -11,6 +11,16 @@ Libearth is the shared common library for various `Earth Reader`_ apps.
 .. _Earth Reader: http://earthreader.org/
 
 
+Installation
+------------
+
+You can install it using ``pip``:
+
+.. code-block:: console
+
+   $ pip install libearth
+
+
 Links
 -----
 
@@ -25,6 +35,12 @@ Git repository (GitHub)
 
 Issue tracker (GitHub)
    https://github.com/earthreader/libearth/issues
+
+Mailing list
+   earthreader@librelist.com
+
+List archive
+   http://librelist.com/browser/earthreader/
 
 Continuous integration (Travis)
    https://travis-ci.org/earthreader/libearth
