@@ -7,7 +7,9 @@ from libearth.codecs import Integer
 from libearth.compat import (IRON_PYTHON, binary_type, text, text_type,
                              string_type)
 from libearth.compat.etree import fromstringlist, tostring
-from libearth.schema import (Attribute, Child, Codec, Content,
+from libearth.parser.rss2 import parse_rss
+from libearth.schema import (SCHEMA_XMLNS,
+                             Attribute, Child, Codec, Content,
                              DescriptorConflictError, DocumentElement,
                              Element, ElementList, EncodeError, IntegrityError,
                              Text,
@@ -15,6 +17,7 @@ from libearth.schema import (Attribute, Child, Codec, Content,
                              inspect_attributes, inspect_child_tags,
                              inspect_content_tag, inspect_xmlns_set,
                              is_partially_loaded, read, validate, write)
+from libearth.subscribe import SubscriptionList
 
 
 def u(text):
@@ -573,9 +576,9 @@ def test_attribute_descriptor_conflict():
 
 def test_write_test_doc(fx_test_doc):
     doc, _ = fx_test_doc
-    g = write(doc, indent='    ', canonical_order=True)
-    print(''.join(write(doc, indent='    ', canonical_order=True)))
-    assert ''.join(g) == '''\
+    gf = lambda: write(doc, indent='    ', canonical_order=True, hints=False)
+    print(''.join(gf()))
+    assert ''.join(gf()) == '''\
 <?xml version="1.0" encoding="utf-8"?>
 <test xmlns:ns0="http://earthreader.github.io/"\
  attr="속성 값" attr-decoder="decoder test">
@@ -669,6 +672,7 @@ def test_write_xmlns_doc(fx_xmlns_doc):
     assert ''.join(g) == text_type('''\
 <?xml version="1.0" encoding="utf-8"?>
 <ns0:nstest xmlns:ns0="http://earthreader.github.io/"\
+ xmlns:libearth="http://earthreader.org/schema/"\
  xmlns:ns1="https://github.com/earthreader/libearth">
     <ns0:samens>Same namespace</ns0:samens>
     <ns1:otherns>Other namespace</ns1:otherns>
@@ -820,6 +824,7 @@ class VTDoc(DocumentElement):
     attr = Attribute('b')
     req_child = Child('c', VTElement, required=True)
     child = Child('d', VTElement)
+    multi = Child('e', VTElement, multiple=True)
 
     def __repr__(self):
         return 'VTDoc(req_attr={0!r}, req_child={1!r})'.format(
@@ -838,12 +843,32 @@ class VTDoc(DocumentElement):
                                req_child=TextElement(value='a'))),
      False, False),
     (VTDoc(req_attr='a', req_child=VTElement()), False, True),
+    (VTDoc(req_attr='a', req_child=VTElement(), multi=[]), False, True),
+    (VTDoc(req_attr='a', req_child=VTElement(), multi=[
+        VTElement()
+    ]), False, True),
+    (VTDoc(req_attr='a', req_child=VTElement(), multi=[
+        VTElement(req_attr='a', req_child=TextElement(value='a'))
+    ]), False, True),
     (VTDoc(req_attr='a', req_child=VTElement(req_attr='a')), False, True),
+    (VTDoc(req_attr='a', req_child=VTElement(req_attr='a'),
+           multi=[]), False, True),
     (VTDoc(req_attr='a',
-           req_child=VTElement(req_child=TextElement(value='a'))), False, True),
+           req_child=VTElement(req_child=TextElement(value='a')),
+           multi=[]), False, True),
     (VTDoc(req_attr='a',
            req_child=VTElement(req_attr='a',
-                               req_child=TextElement(value='a'))), True, True)
+                               req_child=TextElement(value='a')),
+           multi=[]), True, True),
+    (VTDoc(req_attr='a',
+           req_child=VTElement(req_attr='a',
+                               req_child=TextElement(value='a')),
+           multi=[VTElement()]), False, True),
+    (VTDoc(req_attr='a',
+           req_child=VTElement(req_attr='a',
+                               req_child=TextElement(value='a')),
+           multi=[VTElement(req_attr='a',
+                            req_child=TextElement(value='a'))]), True, True)
 ])
 def test_validate_recurse(element, recur_valid, valid):
     assert validate(element, recurse=True, raise_error=False) is recur_valid
@@ -1141,3 +1166,116 @@ def test_element_coerce_from(fx_test_doc):
     assert doc.multi_attr[2].value == 'test'
     with raises(TypeError):
         doc.multi_attr[1:] = ['slice test', 123]
+
+
+rss_template_with_title = '''
+<rss version="2.0" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:dc="http://purl.org/dc/elements/1.1/"
+     xmlns:taxo="http://purl.org/rss/1.0/modules/taxonomy/"
+     xmlns:activity="http://activitystrea.ms/spec/1.0/" >
+    <channel>
+        <title>{0}</title>
+    </channel>
+</rss>
+'''
+
+
+def test_write_subscription_with_ascii_title():
+    rss = rss_template_with_title.format('english')
+    feed, _ = parse_rss(rss)
+    feed.id = 'id'
+
+    sublist = SubscriptionList()
+    sublist.subscribe(feed)
+
+    g = write(sublist)
+    assert ''.join(g)
+
+
+def test_write_subscription_with_nonascii_title():
+    '''SubscriptionList convert the feed title to :class:`str`, and
+    :class:`write` try to encode the title in utf8.
+    When non-ascii characters are in the title, UnicodeDecodeError is raised.
+    '''
+    rss = rss_template_with_title.format('한글')
+    feed, _ = parse_rss(rss)
+    feed.id = 'id'
+
+    sublist = SubscriptionList()
+    sublist.subscribe(feed)
+
+    g = write(sublist)
+    assert ''.join(g)
+
+
+def test_write_hints(fx_test_doc):
+    doc, _ = fx_test_doc
+    doc._hints.update({
+        TestDoc.ns_element_attr: {'abc': '123', 'def': '456'},
+        TestDoc.title_attr: {'ghi': '789', 'jkl': '012'}
+    })
+    g = write(doc, canonical_order=True)
+    tree = fromstringlist(g)
+    hint_tag = '{' + SCHEMA_XMLNS + '}hint'
+    assert tree[0].tag == hint_tag
+    assert tree[0].attrib['tag'] == 'ns-element'
+    assert tree[0].attrib['tag-xmlns'] == 'http://earthreader.github.io/'
+    assert tree[0].attrib['id'] == 'abc'
+    assert tree[0].attrib['value'] == '123'
+    assert tree[1].tag == hint_tag
+    assert tree[1].attrib['tag'] == 'ns-element'
+    assert tree[1].attrib['tag-xmlns'] == 'http://earthreader.github.io/'
+    assert tree[1].attrib['id'] == 'def'
+    assert tree[1].attrib['value'] == '456'
+    assert tree[2].tag == hint_tag
+    assert tree[2].attrib['tag'] == 'title'
+    assert 'tag-xmlns' not in tree[2].attrib
+    assert tree[2].attrib['id'] == 'ghi'
+    assert tree[2].attrib['value'] == '789'
+    assert tree[3].tag == hint_tag
+    assert tree[3].attrib['tag'] == 'title'
+    assert 'tag-xmlns' not in tree[3].attrib
+    assert tree[3].attrib['id'] == 'jkl'
+    assert tree[3].attrib['value'] == '012'
+
+
+@fixture
+def fx_hinted_doc():
+    consume_log = []
+    xml = string_chunks(
+        consume_log,
+        '<test xmlns:l="http://earthreader.org/schema/">', '\n',
+        '\t', '<l:hint tag="multi" id="length" value="3" />', '\n',
+        '\t', '<l:hint tag="s-multi" id="length" value="0" />', ['HINT'], '\n',
+        '\t', '<title>Title</title>', '\n',
+        '\t', '<multi>a</multi>', ['MULTI_STARTED'], '\n',
+        '\t', '<content>Content</content>', '\n',
+        '\t', '<multi>b</multi>', '\n',
+        '\t', '<multi>c</multi>', '\n',
+        '</test>'
+    )
+    doc = read(TestDoc, xml)
+    return doc, consume_log
+
+
+def test_read_hints(fx_hinted_doc):
+    doc, consume_log = fx_hinted_doc
+    assert not doc._hints
+    assert is_partially_loaded(doc)
+    assert doc._partial == 1
+    assert not consume_log or IRON_PYTHON
+    doc.title_attr
+    assert is_partially_loaded(doc)
+    assert doc._partial == 2
+    assert consume_log[-1] == 'HINT' or IRON_PYTHON
+    assert doc._hints == {
+        TestDoc.multi_attr: {'length': '3'},
+        TestDoc.sorted_children: {'length': '0'}
+    }
+
+
+def test_element_list_length_hint(fx_hinted_doc):
+    doc, consume_log = fx_hinted_doc
+    assert len(doc.multi_attr) == 3
+    assert len(doc.sorted_children) == 0
+    assert consume_log == ['HINT'] or IRON_PYTHON

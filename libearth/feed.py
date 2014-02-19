@@ -205,6 +205,21 @@ class Link(Element):
         return hash((self.uri, self.relation, self.mimetype, self.language,
                      self.title, self.byte_size))
 
+    @property
+    def html(self):
+        """(:class:`bool`) Whether its :attr:`mimetype` is HTML (or XHTML).
+
+        .. versionadded:: 0.2.0
+
+        """
+        if self.mimetype:
+            match = re.match(r'^\s*([^;/\s]+/[^;/\s]+)\s*(?:;\s*.*)?$',
+                             self.mimetype)
+            if match:
+                mimetype = match.group(1)
+                return mimetype in ('text/html', 'application/xhtml+xml')
+        return False
+
     def __unicode__(self):
         return self.uri
 
@@ -265,6 +280,28 @@ class LinkList(collections.MutableSequence):
                 if link.mimetype and regex.match(link.mimetype)
             )
         return LinkList.list_type(l for l in self if l.mimetype == pattern)
+
+    @property
+    def permalink(self):
+        """(:class:`Link`) Find the permalink from the list.  The following
+        list shows precedence of lookup conditions:
+
+        1. :attr:`~Link.html`, and :attr:`~Link.relation` is ``'alternate'``
+        2. :attr:`~Link.html`
+        3. :attr:`~Link.relation` is ``'alternate'``
+        4. No permalink: return :const:`None`
+
+        .. versionadded:: 0.2.0
+
+        """
+        links = [(lnk, (lnk.html, lnk.relation == 'alternate')) for lnk in self]
+        filterred_links = [(l, cond) for l, cond in links if cond[0] or cond[1]]
+        try:
+            link, _ = max(filterred_links, key=lambda pair: pair[1])
+        except ValueError:
+            pass
+        else:
+            return link
 
 
 # FIXME: it probably would be common for all specialized element list types

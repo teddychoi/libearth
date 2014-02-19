@@ -8,8 +8,8 @@ from pytest import fixture, raises
 
 from libearth.compat import IRON_PYTHON, binary, text_type, xrange
 from libearth.compat.parallel import parallel_map
-from libearth.feed import (Category, Content, Entry, EntryList, Feed, Generator,
-                           Link, LinkList, Person, Source, Text, Mark)
+from libearth.feed import (Category, Content, Entry, Feed, Generator, Link,
+                           LinkList, Person, Source, Text, Mark)
 from libearth.repository import FileSystemRepository
 from libearth.schema import read, write
 from libearth.session import Session
@@ -90,6 +90,15 @@ def test_person_html():
     ).__html__()
 
 
+def test_link_html_property():
+    link = Link(uri='http://dahlia.kr/', mimetype='text/html')
+    assert link.html
+    link = Link(uri='http://dahlia.kr/', mimetype='application/xhtml+xml')
+    assert link.html
+    link = Link(uri='http://dahlia.kr/', mimetype='application/xml')
+    assert not link.html
+
+
 def test_link_str():
     link = Link(
         uri='http://dahlia.kr/',
@@ -100,7 +109,7 @@ def test_link_str():
     assert text_type(link) == 'http://dahlia.kr/'
 
 
-def test_link_html():
+def test_link_html_method():
     link = Link(
         uri='http://dahlia.kr/',
         relation='alternate',
@@ -155,6 +164,21 @@ def test_link_list_filter_by_mimetype(fx_feed_links):
         'application/xml+atom',
         'application/xml+rss'
     ]
+
+
+def test_link_list_permalink(fx_feed_links):
+    links = fx_feed_links.links
+    other_link = Link(relation='other', uri='http://example.com/')
+    html_link = Link(relation='other',
+                     mimetype='text/html', uri='http://example.com/')
+    links.extend([other_link, html_link])
+    assert links.permalink is links[1]
+    del links[1:3]
+    assert links.permalink is html_link
+    del links[-1]
+    assert links.permalink is links[0]
+    del links[:-1]
+    assert links.permalink is None
 
 
 def test_category_str():
@@ -253,21 +277,6 @@ def test_entry_read():
 def test_entry_str():
     assert text_type(Entry(title=Text(value='Title desu'))) == 'Title desu'
     assert text_type(Entry()) == ''
-
-
-@fixture
-def fx_feed_entries(fx_feed, fx_test_entries):
-    fx_feed.entries.extend(fx_test_entries)
-    return fx_feed
-
-
-def test_entry_list_sorted(fx_feed_entries):
-    assert isinstance(fx_feed_entries.entries, EntryList)
-    result = fx_feed_entries.entries.sort_entries()
-    assert isinstance(result, EntryList)
-    sorted_entries = sorted(fx_feed_entries.entries, key=lambda entry:
-                            entry.updated_at, reverse=True)
-    assert sorted_entries == result
 
 
 def test_source():
@@ -629,20 +638,17 @@ def fx_entries():
 
 def test_merge_sorted(fx_stages, fx_feed, fx_entries):
     stage, _ = fx_stages
-
+    feed_id = get_hash(fx_feed.id)
     with stage:
-        stage.feeds[fx_feed.id] = fx_feed
-
+        stage.feeds[feed_id] = fx_feed
     with stage:
         for entry in fx_entries:
-            feed = stage.feeds[fx_feed.id]
+            feed = stage.feeds[feed_id]
             feed.entries = [entry]
-            stage.feeds[fx_feed.id] = feed
-
+            stage.feeds[feed_id] = feed
     with stage:
-        entries = stage.feeds[fx_feed.id].entries
-        sorted_entries = sorted(entries, key=lambda entry: entry.updated_at,
-                                reverse=True)
-        assert len(entries) == len(sorted_entries)
-        for i in range(len(entries)):
-            assert entries[i] == sorted_entries[i]
+        entries = stage.feeds[feed_id].entries
+        expected = sorted(entries, key=lambda x: x.updated_at, reverse=True)
+        print([entry.title.value for entry in entries])
+        print([entry.title.value for entry in expected])
+        assert list(entries) == expected

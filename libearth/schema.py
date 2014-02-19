@@ -63,7 +63,7 @@ import xml.sax.saxutils
 from .compat import UNICODE_BY_DEFAULT, binary_type, string_type
 from .compat.xmlpullreader import PullReader
 
-__all__ = ('PARSER_LIST',
+__all__ = ('PARSER_LIST', 'SCHEMA_XMLNS',
            'Attribute', 'Child', 'Codec', 'CodecDescriptor', 'CodecError',
            'Content', 'ContentHandler', 'DecodeError', 'Descriptor',
            'DescriptorConflictError', 'DocumentElement', 'Element',
@@ -73,6 +73,10 @@ __all__ = ('PARSER_LIST',
            'index_descriptors', 'inspect_attributes', 'inspect_child_tags',
            'inspect_content_tag', 'inspect_xmlns_set', 'is_partially_loaded',
            'read', 'validate', 'write')
+
+
+#: (:class:`str`) The XML namespace name used for schema metadatq.
+SCHEMA_XMLNS = 'http://earthreader.org/schema/'
 
 
 class SchemaError(TypeError):
@@ -376,7 +380,7 @@ class Child(Descriptor):
         if attr is not None:
             content_desc = attr[1]
             content_desc.read(reserved_value, content)
-        reserved_value._partial = False
+        reserved_value._partial = 0
 
 
 class Codec(object):
@@ -891,13 +895,19 @@ class Element(object):
 
     """
 
-    __slots__ = '_attrs', '_content', '_data', '_parent', '_root', '_partial'
+    __slots__ = ('_attrs', '_content', '_data', '_parent', '_root', '_partial',
+                 '_hints')
 
     def __init__(self, _parent=None, **attributes):
         self._attrs = getattr(self, '_attrs', {})  # FIXME
         self._content = getattr(self, '_content', None)
         self._data = getattr(self, '_data', {})
-        self._partial = False
+        # _partial has three states:
+        # 0. the element is completely loaded
+        # 1. the element is partially loaded
+        # 2. the element is partially loaded, but _hints are loaded
+        self._partial = 0
+        self._hints = {}
         if _parent is not None:
             if not isinstance(_parent, Element):
                 raise TypeError('expected a {0.__module__}.{0.__name__} '
@@ -907,7 +917,7 @@ class Element(object):
             if hasattr(self._root(), '_handler'):
                 self._stack_top = (1 if self._root() is self
                                    else len(self._root()._handler.stack))
-                self._partial = True
+                self._partial = 1
         cls = type(self)
         acceptable_desc_types = Descriptor, Content, Attribute, property
         # FIXME: ^-- hardcoded type list
@@ -1194,7 +1204,7 @@ class ElementList(collections.MutableSequence):
                 return False
         return True
 
-    def consume_index(self, index):
+    def consume_index(self, index, ignore_length_hint=False):
         if isinstance(index, slice):
             if index.start is not None and index.start >= 0 and \
                index.stop is not None and index.stop >= 0:
@@ -1203,6 +1213,10 @@ class ElementList(collections.MutableSequence):
                 index = -1
         key = self.descriptor
         if index >= 0:
+            if not ignore_length_hint:
+                length_hint = self._length_hint
+                if length_hint is not None and index >= length_hint:
+                    raise IndexError('list index out of range')
             for data in self.consume_buffer():
                 if key in data and len(data[key]) > index:
                     return data[key]
@@ -1223,7 +1237,28 @@ class ElementList(collections.MutableSequence):
         raise TypeError('expected an instance of {0.__module__}.{0.__name__}, '
                         'not {1!r}'.format(self.value_type, value))
 
+    @property
+    def _length_hint(self):
+        element = self.element
+        if element._partial == 1:
+            for data in self.consume_buffer():
+                if element._partial != 1:
+                    break
+        try:
+            length_hint = element._hints[self.descriptor]['length']
+        except KeyError:
+            return
+        return int(length_hint)
+
+    @_length_hint.setter
+    def _length_hint(self, value):
+        hints = self.element._hints.setdefault(self.descriptor, {})
+        hints['length'] = str(value)
+
     def __len__(self):
+        length_hint = self._length_hint
+        if length_hint is not None:
+            return length_hint
         key = self.descriptor
         data = self.element._data
         for data in self.consume_buffer():
@@ -1231,8 +1266,11 @@ class ElementList(collections.MutableSequence):
         try:
             lst = data[key]
         except KeyError:
-            return 0
-        return len(lst)
+            length = 0
+        else:
+            length = len(lst)
+        self._length_hint = length
+        return length
 
     def __getitem__(self, index):
         return self.consume_index(index)[index]
@@ -1247,12 +1285,17 @@ class ElementList(collections.MutableSequence):
     def __delitem__(self, index):
         data = self.consume_index(index)
         del data[index]
+        self._length_hint = len(data)
 
     def insert(self, index, value):
-        data = self.consume_index(index)
+        data = self.consume_index(index, ignore_length_hint=True)
         data.insert(index, self.validate_value(value))
+        self._length_hint = len(data)
 
     def __nonzero__(self):
+        length_hint = self._length_hint
+        if length_hint is not None:
+            return bool(length_hint)
         data = self.consume_index(1)
         return bool(data)
 
@@ -1333,6 +1376,19 @@ class ContentHandler(xml.sax.handler.ContentHandler):
         self.document = weakref.ref(document)
         self.stack = []
 
+    def load_hint(self, parent_element, tag, attrs):
+        xmlns, name = tag
+        if not (xmlns == SCHEMA_XMLNS and name == 'hint'):
+            parent_element._partial = 2
+            return False
+        child_tags = inspect_child_tags(type(parent_element))
+        child_xmlns = attrs.get((None, 'tag-xmlns'))
+        child_name = attrs[None, 'tag']
+        attr, desc = child_tags[child_xmlns, child_name]
+        hint_dict = parent_element._hints.setdefault(desc, {})
+        hint_dict[attrs[None, 'id']] = attrs[None, 'value']
+        return True
+
     def startElementNS(self, tag, qname, attrs):
         xmlns, name = tag
         try:
@@ -1340,6 +1396,8 @@ class ContentHandler(xml.sax.handler.ContentHandler):
         except IndexError:
             # document element
             doc = self.document()
+            if self.load_hint(doc, tag, attrs):
+                return
             expected = getattr(doc, '__xmlns__', None), doc.__tag__
             if tag != expected:
                 raise IntegrityError('document element must be {0}, '
@@ -1356,6 +1414,8 @@ class ContentHandler(xml.sax.handler.ContentHandler):
             reserved_value = doc
         else:
             parent_element = parent_context.reserved_value
+            if self.load_hint(parent_element, tag, attrs):
+                return
             element_type = type(parent_element)
             child_tags = inspect_child_tags(element_type)
             try:
@@ -1415,6 +1475,8 @@ class ContentHandler(xml.sax.handler.ContentHandler):
 
     def endElementNS(self, tag, qname):
         xmlns, name = tag
+        if xmlns == SCHEMA_XMLNS:
+            return
         context = self.stack.pop()
         assert name == context.tag
         assert xmlns == context.xmlns
@@ -1425,7 +1487,7 @@ class ContentHandler(xml.sax.handler.ContentHandler):
             if attr is not None:
                 content_desc = attr[1]
                 content_desc.read(context.reserved_value, text)
-            context.reserved_value._partial = False
+            context.reserved_value._partial = 0
         else:
             context.descriptor.end_element(context.reserved_value, text)
 
@@ -1460,7 +1522,7 @@ def is_partially_loaded(element):
     if not isinstance(element, Element):
         raise TypeError('element must be an instance of {0.__module__}.'
                         '{0.__name__}, not {1!r}'.format(Element, element))
-    return element._partial
+    return bool(element._partial)
 
 
 def index_descriptors(element_type):
@@ -1731,18 +1793,23 @@ def validate(element, recurse=True, raise_error=True):
                 )
             return False
     for name, desc in inspect_child_tags(element_type).values():
-        child_element = getattr(element, name, None)
-        if desc.required and not child_element:
-            if raise_error:
-                raise IntegrityError(
-                    '{0.__module__}.{0.__name__}.{1} is required, but '
-                    '{2!r} lacks it'.format(element_type, name, element)
-                )
-            return False
-        if recurse and child_element is not None:
-            if validate(child_element, recurse=True, raise_error=raise_error):
-                continue
-            return False
+        children = getattr(element, name, None)
+        if not desc.multiple:
+            children = children,
+        for child_element in children:
+            if desc.required and not child_element:
+                if raise_error:
+                    raise IntegrityError(
+                        '{0.__module__}.{0.__name__}.{1} is required, but '
+                        '{2!r} lacks it'.format(element_type, name, element)
+                    )
+                return False
+            if recurse and child_element is not None:
+                if validate(child_element,
+                            recurse=True,
+                            raise_error=raise_error):
+                    continue
+                return False
     return True
 
 
@@ -1770,6 +1837,9 @@ class write(collections.Iterable):
                             implementations.  useful for testing.
                             :const:`False` by default
     :type canonical_order: :class:`bool`
+    :param hints: export hint values as well.  hints improves efficiency of
+                  :func:`read()`.  :const:`True` by default
+    :type hints: :class:`bool`
     :param as_bytes: return chunks as :class:`bytes` (:class:`str` in Python 2)
                      if :const:`True`.  return chunks as :class:`str`
                      (:class:`unicode` in Python 3) if :const:`False`.
@@ -1781,7 +1851,7 @@ class write(collections.Iterable):
     """
 
     def __init__(self, document, validate=True, indent='  ', newline='\n',
-                 canonical_order=False, as_bytes=None):
+                 canonical_order=False, hints=True, as_bytes=None):
         if not isinstance(document, DocumentElement):
             raise TypeError(
                 'document must be an instance of {0.__module__}.{0.__name__}, '
@@ -1794,11 +1864,14 @@ class write(collections.Iterable):
         self.newline = newline
         self.as_bytes = as_bytes
         self.sort = sorted if canonical_order else lambda l, *a, **k: l
+        self.hints = hints
         xmlns_set = inspect_xmlns_set(self.document_type)
         self.xmlns_alias = dict(
             (uri, 'ns{0}'.format(i))
             for i, uri in enumerate(self.sort(xmlns_set))
         )
+        if hints:
+            self.xmlns_alias[SCHEMA_XMLNS] = 'libearth'
 
     def __iter__(self):
         result = itertools.chain(['<?xml version="1.0" encoding="utf-8"?>\n'],
@@ -1860,7 +1933,10 @@ class write(collections.Iterable):
                 yield ':'
             yield desc.name
             yield '='
-            yield encode(quoteattr(encoded_attr_value))
+            quoted_attr = quoteattr(encoded_attr_value)
+            if not isinstance(quoteattr, binary_type):
+                quoted_attr = encode(quoted_attr)
+            yield quoted_attr
         content = inspect_content_tag(element_type)
         children = inspect_child_tags(element_type)
         escape = xml.sax.saxutils.escape
@@ -1883,6 +1959,32 @@ class write(collections.Iterable):
                         )
                     yield encode(escape(encoded_content_value))
             else:
+                if self.hints:
+                    hints = self.sort(
+                        (desc.tag, desc.xmlns, hint_dict)
+                        for desc, hint_dict in element._hints.items()
+                    )
+                    for hint_tag, hint_xmlns, hint_dict in hints:
+                        for hint_id, hint_val in self.sort(hint_dict.items()):
+                            yield newline
+                            for s in itertools.repeat(self.indent, depth + 1):
+                                yield s
+                            yield '<'
+                            yield self.xmlns_alias[SCHEMA_XMLNS]
+                            yield ':hint tag='
+                            yield quoteattr(hint_tag)
+                            if hint_xmlns:
+                                yield ' tag-xmlns='
+                                yield quoteattr(hint_xmlns)
+                            yield ' id='
+                            if not isinstance(hint_id, binary_type):
+                                hint_id = encode(hint_id)
+                            yield quoteattr(hint_id)
+                            yield ' value='
+                            if not isinstance(hint_val, binary_type):
+                                hint_val = encode(hint_val)
+                            yield quoteattr(hint_val)
+                            yield '/>'
                 children = self.sort(
                     children.values(),
                     key=lambda pair: pair[1].descriptor_counter

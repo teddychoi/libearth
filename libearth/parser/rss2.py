@@ -6,6 +6,7 @@ Parsing RSS 2.0 feed.
 """
 import logging
 import re
+
 try:
     import urllib2
 except ImportError:
@@ -54,6 +55,8 @@ def parse_rss(xml, feed_url=None, parse_entry=True):
 
 
 def check_valid_as_atom(feed_data):
+    # FIXME: It doesn't only "check" the feed_data but manipulates it
+    # if not valid.  I think the function should be renamed.
     if feed_data.updated_at is None:
         if feed_data.entries:
             try:
@@ -64,6 +67,12 @@ def check_valid_as_atom(feed_data):
                 feed_data.updated_at = now()
         else:
             feed_data.updated_at = now()
+    if feed_data.title is None:
+        feed_data.title = feed_data.subtitle
+        # FIXME: what should we do when there's even no subtitle?
+    for entry in feed_data.entries:
+        if entry.updated_at is None:
+            entry.updated_at = feed_data.updated_at
 
 
 def rss_get_channel_data(root, feed_url):
@@ -151,7 +160,7 @@ def rss_get_item_data(entries):
                 #       is required element, so we have to fill some value to
                 #       entry.updated_at.
             elif data.tag == 'source':
-                from .heuristic import get_format
+                from .autodiscovery import get_format
                 url = data.get('url')
                 request = urllib2.Request(url)
                 f = urllib2.urlopen(request)

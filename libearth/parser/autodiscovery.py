@@ -9,19 +9,21 @@ try:
 except ImportError:
     import html.parser as HTMLParser
 import collections
+import logging
 import re
 try:
     import urlparse
 except ImportError:
     import urllib.parse as urlparse
 
-from libearth.compat import text
-from libearth.parser.heuristic import get_format
-from libearth.parser import atom, rss2
+from ..compat import text
+from ..compat.etree import fromstring
+from .atom import parse_atom
+from .rss2 import parse_rss
 
 
 __all__ = ('ATOM_TYPE', 'RSS_TYPE', 'TYPE_TABLE', 'AutoDiscovery', 'FeedLink',
-           'FeedUrlNotFoundError', 'autodiscovery')
+           'FeedUrlNotFoundError', 'autodiscovery', 'get_format')
 
 
 #: (:class:`str`) The MIME type of RSS 2.0 format.
@@ -31,7 +33,7 @@ RSS_TYPE = 'application/rss+xml'
 ATOM_TYPE = 'application/atom+xml'
 
 #: (:class:`collections.Mapping`) The mapping table of feed types
-TYPE_TABLE = {atom.parse_atom: ATOM_TYPE, rss2.parse_rss: RSS_TYPE}
+TYPE_TABLE = {parse_atom: ATOM_TYPE, parse_rss: RSS_TYPE}
 
 #: Namedtuple which is a pair of ``type` and ``url``
 FeedLink = collections.namedtuple('FeedLink', 'type url')
@@ -77,6 +79,10 @@ def autodiscovery(document, url):
 class AutoDiscovery(HTMLParser.HTMLParser):
     """Parse the given HTML and try finding the actual feed urls from it."""
 
+    FEED_PATTERN = r'''rel\s?=\s?('|")?alternate['"\s>]'''
+    FEED_URL_PATTERN = r'''href\s?=\s?(?:'|")?([^'"\s>]+)'''
+    FEED_TYPE_PATTERN = r'''type\s?=\s?(?:'|")?([^'"\s>]+)'''
+
     def __init__(self):
         self.feed_links = []
 
@@ -102,12 +108,10 @@ class AutoDiscovery(HTMLParser.HTMLParser):
         return self.feed_links
 
     def find_feed_url_with_regex(self, chunk):
-        if (re.search('rel\s?=\s?(\'|")?alternate[\'"\s>]', chunk) and
-                (RSS_TYPE in chunk) or (ATOM_TYPE in chunk)):
-            feed_url = re.search('href\s?=\s?(?:\'|")?([^\'"\s>]+)',
-                                 chunk).group(1)
-            feed_type = re.search('type\s?=\s?(?:\'|\")?([^\'"\s>]+)',
-                                  chunk).group(1)
+        if (re.search(self.FEED_PATTERN, chunk) and
+           ((RSS_TYPE in chunk) or (ATOM_TYPE in chunk))):
+            feed_url = re.search(self.FEED_URL_PATTERN, chunk).group(1)
+            feed_type = re.search(self.FEED_TYPE_PATTERN, chunk).group(1)
             self.feed_links.append(FeedLink(feed_type, feed_url))
 
 
@@ -116,3 +120,31 @@ class FeedUrlNotFoundError(Exception):
 
     def __init__(self, msg):
         self.msg = msg
+
+
+def get_format(document):
+    """Guess the syndication format of an arbitrary ``document``.
+
+    :param document: document string to guess
+    :type document: :class:`str`, :class:`bytes`
+    :returns: the function possible to parse the given ``document``
+    :rtype: :class:`collections.Callable`
+
+    .. versionchanged:: 0.2.0
+       The function was in :mod:`libearth.parser.heuristic` module (which is
+       removed now) before 0.2.0, but now it's moved to
+       :mod:`libearth.parser.autodiscovery`.
+
+    """
+    try:
+        root = fromstring(document)
+    except Exception as e:
+        logger = logging.getLogger(__name__ + '.get_format')
+        logger.warning(e, exc_info=True)
+        return None
+    if root.tag == '{http://www.w3.org/2005/Atom}feed':
+        return parse_atom
+    elif root.tag == 'rss':
+        return parse_rss
+    else:
+        return None
