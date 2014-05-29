@@ -13,6 +13,7 @@ try:
 except ImportError:
     import urllib.parse as urlparse
 
+from .atom_elements import AtomId
 from ..codecs import Rfc3339
 from ..compat.etree import fromstring
 from ..feed import (Category, Content, Entry, Feed, Generator, Link,
@@ -86,8 +87,8 @@ def atom_get_feed_data(root, feed_url):
     xml_base = atom_get_xml_base(root, feed_url)
     alt_id = None
     for data in root:
-        if data.tag == '{' + XMLNS_ATOM + '}' + 'id':
-            feed_data.id = alt_id = atom_get_id_tag(data, xml_base)
+        if data.tag == AtomId.get_element_uri():
+            feed_data.id = alt_id = AtomId(data).parse_with_xml_base(xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'title':
             feed_data.title = atom_get_title_tag(data)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
