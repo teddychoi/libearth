@@ -88,7 +88,7 @@ def atom_get_feed_data(root, feed_url):
     alt_id = None
     for data in root:
         if data.tag == AtomId.get_element_uri():
-            feed_data.id = alt_id = AtomId(data).parse_with_xml_base(xml_base)
+            feed_data.id = alt_id = AtomId(data).parse(xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'title':
             feed_data.title = atom_get_title_tag(data)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
