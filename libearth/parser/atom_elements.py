@@ -1,4 +1,7 @@
-import urlparse
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
 
 
 #: (:class:`str`) The XML namespace for Atom format.
