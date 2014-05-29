@@ -27,7 +27,7 @@ class ElementBase(object):
     def parse(self, xml_base=None):
         raise NotImplementedError('')
 
-    def get_xml_base(self, default):
+    def _get_xml_base(self, default):
         if '{' + XMLNS_XML + '}' + 'base' in self.data.attrib:
             return self.data.attrib['{' + XMLNS_XML + '}' + 'base']
         else:
@@ -51,7 +51,7 @@ class AtomId(ElementBase):
     element_name = 'id'
 
     def parse(self, xml_base=None):
-        xml_base = self.get_xml_base(xml_base)
+        xml_base = self._get_xml_base(xml_base)
         return urlparse.urljoin(xml_base, self.data.text)
 
 
