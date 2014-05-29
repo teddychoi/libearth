@@ -132,8 +132,8 @@ def atom_get_entry_data(entries, feed_url):
         entry_data = Entry()
         xml_base = atom_get_xml_base(entry, feed_url)
         for data in entry:
-            if data.tag == '{' + XMLNS_ATOM + '}' + 'id':
-                entry_data.id = atom_get_id_tag(data, xml_base)
+            if data.tag == AtomId.get_element_uri():
+                entry_data.id = AtomId(data).parse(xml_base)
             elif data.tag == AtomTitle.get_element_uri():
                 entry_data.title = AtomTitle(data).parse()
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
@@ -266,8 +266,8 @@ def atom_get_source_tag(data_dump, xml_base):
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
             links.append(atom_get_link_tag(data, xml_base))
             source.links = links
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'id':
-            source.id = atom_get_id_tag(data, xml_base)
+        elif data.tag == AtomId.get_element_uri():
+            source.id = AtomId(data).parse()
         elif data.tag == AtomTitle.get_element_uri():
             source.title = AtomTitle(data).parse()
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
