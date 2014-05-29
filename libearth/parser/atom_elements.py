@@ -3,6 +3,8 @@ try:
 except ImportError:
     import urllib.parse as urlparse
 
+from ..feed import Text
+
 
 #: (:class:`str`) The XML namespace for Atom format.
 XMLNS_ATOM = 'http://www.w3.org/2005/Atom'
@@ -12,7 +14,7 @@ XMLNS_XML = 'http://www.w3.org/XML/1998/namespace'
 
 
 class ElementBase(object):
-    XMLNS = None
+    XMLNS = XMLNS_ATOM
     element_name = None
 
     @classmethod
@@ -32,10 +34,38 @@ class ElementBase(object):
             return default
 
 
+class AtomTextConstruct(ElementBase):
+
+    def parse(self):
+        text = Text()
+        text_type = self.data.get('type')
+        if text_type is not None:
+            text.type = text_type
+        if text.type in ('text', 'html'):
+            text.value = self.data.text
+        elif text.value == 'xhtml':
+            text.value = ''  # TODO
+        return text
+
 class AtomId(ElementBase):
-    XMLNS = XMLNS_ATOM
     element_name = 'id'
 
     def parse(self, xml_base=None):
         xml_base = self.get_xml_base(xml_base)
         return urlparse.urljoin(xml_base, self.data.text)
+
+
+class AtomTitle(AtomTextConstruct):
+    element_name = 'title'
+
+
+class AtomSubtitle(AtomTextConstruct):
+    element_name = 'subtitle'
+
+
+class AtomRights(AtomTextConstruct):
+    element_name = 'rights'
+
+
+class AtomSummary(AtomTextConstruct):
+    element_name = 'summary'
