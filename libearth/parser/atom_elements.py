@@ -47,6 +47,7 @@ class AtomTextConstruct(ElementBase):
             text.value = ''  # TODO
         return text
 
+
 class AtomId(ElementBase):
     element_name = 'id'
 
