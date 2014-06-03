@@ -193,7 +193,8 @@ class AtomContent(ElementBase):
             content.type = content_type
         if 'src' in self.data.attrib:
             xml_base = self._get_xml_base(xml_base)
-            content.source_uri = urlparse.urljoin(xml_base, self.data.attrib['src'])
+            content.source_uri = urlparse.urljoin(xml_base,
+                                                  self.data.attrib['src'])
         return content
 
 
@@ -352,4 +353,3 @@ def atom_get_source_tag(data_dump, xml_base):
         elif data.tag == AtomSubtitle.get_element_uri():
             source.subtitle = AtomSubtitle(data).parse()
     return source
-
