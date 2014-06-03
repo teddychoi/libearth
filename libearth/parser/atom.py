@@ -207,9 +207,9 @@ def atom_get_feed_data(root, feed_url):
             category = AtomCategory(data).parse()
             if category:
                 feed_data.categories.append(category)
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'contributor':
+        elif data.tag == AtomContributor.get_element_uri():
             feed_data.contributors.append(
-                atom_get_contributor_tag(data, xml_base)
+                AtomContributor(data).parse(xml_base)
             )
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
             link = atom_get_link_tag(data, xml_base)
@@ -251,9 +251,9 @@ def atom_get_entry_data(entries, feed_url):
                 category = AtomCategory(data).parse()
                 if category:
                     entry_data.categories.append(category)
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'contributor':
+            elif data.tag == AtomContributor.get_element_uri():
                 entry_data.contributors.append(
-                    atom_get_contributor_tag(data, xml_base)
+                    AtomContributor(data).parse(xml_base)
                 )
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
                 entry_data.links.append(atom_get_link_tag(data, xml_base))
@@ -369,8 +369,8 @@ def atom_get_source_tag(data_dump, xml_base):
             if category:
                 categories.append(category)
             source.categories = categories
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'contributor':
-            contributors.append(atom_get_contributor_tag(data, xml_base))
+        elif data.tag == AtomContributor.get_element_uri():
+            contributors.append(AtomContributor(data).parse(xml_base))
             source.contributors = contributors
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
             links.append(atom_get_link_tag(data, xml_base))
