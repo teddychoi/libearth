@@ -68,7 +68,7 @@ class AtomPersonConstruct(ElementBase):
 
     def parse(self, xml_base=None):
         person = Person()
-        xml_base = atom_get_xml_base(self.data, xml_base)
+        xml_base = self._get_xml_base(self.data, xml_base)
         for child in self.data:
             if child.tag == '{' + XMLNS_ATOM + '}' + 'name':
                 person.name = child.text
