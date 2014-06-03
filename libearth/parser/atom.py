@@ -224,31 +224,6 @@ def parse_atom(xml, feed_url, parse_entry=True):
     return feed_data, None
 
 
-def atom_parse_text_construct(data):
-    text = Text()
-    text_type = data.get('type')
-    if text_type is not None:
-        text.type = text_type
-    if text.type in ('text', 'html'):
-        text.value = data.text
-    elif text.value == 'xhtml':
-        text.value = ''  # TODO
-    return text
-
-
-def atom_parse_person_construct(data, xml_base):
-    person = Person()
-    xml_base = atom_get_xml_base(data, xml_base)
-    for child in data:
-        if child.tag == '{' + XMLNS_ATOM + '}' + 'name':
-            person.name = child.text
-        elif child.tag == '{' + XMLNS_ATOM + '}' + 'uri':
-            person.uri = urlparse.urljoin(xml_base, child.text)
-        elif child.tag == '{' + XMLNS_ATOM + '}' + 'email':
-            person.email = child.text
-    return person
-
-
 def atom_get_feed_data(root, feed_url):
     feed_data = Feed()
     xml_base = atom_get_xml_base(root, feed_url)
@@ -335,80 +310,6 @@ def atom_get_xml_base(data, default):
         return data.attrib['{' + XMLNS_XML + '}' + 'base']
     else:
         return default
-
-
-def atom_get_id_tag(data, xml_base):
-    xml_base = atom_get_xml_base(data, xml_base)
-    return urlparse.urljoin(xml_base, data.text)
-
-
-def atom_get_updated_tag(data):
-    return Rfc3339().decode(data.text)
-
-
-def atom_get_author_tag(data, xml_base):
-    return atom_parse_person_construct(data, xml_base)
-
-
-def atom_get_category_tag(data):
-    if not data.get('term'):
-        return
-    category = Category()
-    category.term = data.get('term')
-    category.scheme_uri = data.get('scheme')
-    category.label = data.get('label')
-    return category
-
-
-def atom_get_contributor_tag(data, xml_base):
-    return atom_parse_person_construct(data, xml_base)
-
-
-def atom_get_link_tag(data, xml_base):
-    link = Link()
-    xml_base = atom_get_xml_base(data, xml_base)
-    link.uri = urlparse.urljoin(xml_base, data.get('href'))
-    link.relation = data.get('rel')
-    link.mimetype = data.get('type')
-    link.language = data.get('hreflang')
-    link.title = data.get('title')
-    link.byte_size = data.get('length')
-    return link
-
-
-def atom_get_generator_tag(data, xml_base):
-    generator = Generator()
-    xml_base = atom_get_xml_base(data, xml_base)
-    generator.value = data.text
-    if 'uri' in data.attrib:
-        generator.uri = urlparse.urljoin(xml_base, data.attrib['uri'])
-    generator.version = data.get('version')
-    return generator
-
-
-def atom_get_icon_tag(data, xml_base):
-    xml_base = atom_get_xml_base(data, xml_base)
-    return urlparse.urljoin(xml_base, data.text)
-
-
-def atom_get_logo_tag(data, xml_base):
-    xml_base = atom_get_xml_base(data, xml_base)
-    return urlparse.urljoin(xml_base, data.text)
-
-
-def atom_get_content_tag(data, xml_base):
-    content = Content()
-    content.value = data.text
-    content_type = data.get('type')
-    if content_type is not None:
-        content.type = content_type
-    if 'src' in data.attrib:
-        content.source_uri = urlparse.urljoin(xml_base, data.attrib['src'])
-    return content
-
-
-def atom_get_published_tag(data):
-    return Rfc3339().decode(data.text)
 
 
 def atom_get_source_tag(data_dump, xml_base):
