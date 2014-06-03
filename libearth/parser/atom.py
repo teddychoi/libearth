@@ -182,6 +182,21 @@ class AtomLogo(ElementBase):
         return urlparse.urljoin(xml_base, self.data.text)
 
 
+class AtomContent(ElementBase):
+    element_name = 'content'
+
+    def parse(self, xml_base=None):
+        content = Content()
+        content.value = self.data.text
+        content_type = self.data.get('type')
+        if content_type is not None:
+            content.type = content_type
+        if 'src' in self.data.attrib:
+            xml_base = self._get_xml_base(xml_base)
+            content.source_uri = urlparse.urljoin(xml_base, self.data.attrib['src'])
+        return content
+
+
 def parse_atom(xml, feed_url, parse_entry=True):
     """Atom parser.  It parses the Atom XML and returns the feed data
     as internal representation.
@@ -301,8 +316,8 @@ def atom_get_entry_data(entries, feed_url):
                 )
             elif data.tag == AtomLink.get_element_uri():
                 entry_data.links.append(AtomLink(data).parse(xml_base))
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'content':
-                entry_data.content = atom_get_content_tag(data, xml_base)
+            elif data.tag == AtomContent.get_element_uri():
+                entry_data.content = AtomContent(data).parse(xml_base)
             elif data.tag == AtomPublished.get_element_uri():
                 entry_data.published_at = AtomPublished(data).parse()
             elif data.tag == AtomRights.get_element_uri():
