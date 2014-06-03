@@ -125,6 +125,18 @@ class AtomUpdated(AtomDateConstruct):
     element_name = 'updated'
 
 
+class AtomCategory(ElementBase):
+
+    def parse(self):
+        if not self.data.get('term'):
+            return
+        category = Category()
+        category.term = self.data.get('term')
+        category.scheme_uri = self.data.get('scheme')
+        category.label = self.data.get('label')
+        return category
+
+
 def parse_atom(xml, feed_url, parse_entry=True):
     """Atom parser.  It parses the Atom XML and returns the feed data
     as internal representation.
@@ -190,10 +202,10 @@ def atom_get_feed_data(root, feed_url):
             feed_data.updated_at = AtomUpdated(data).parse()
         elif data.tag == AtomAuthor.get_element_uri():
             feed_data.authors.append(AtomAuthor(data).parse(xml_base))
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
-            category = atom_get_category_tag(data)
+        elif data.tag == AtomCategory.get_element_uri():
+            category = AtomCategory(data).parse()
             if category:
-                feed_data.categories.append(atom_get_category_tag(data))
+                feed_data.categories.append(category)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'contributor':
             feed_data.contributors.append(
                 atom_get_contributor_tag(data, xml_base)
@@ -234,10 +246,10 @@ def atom_get_entry_data(entries, feed_url):
                 entry_data.updated_at = AtomUpdated(data).parse()
             elif data.tag == AtomAuthor.get_element_uri():
                 entry_data.authors.append(AtomAuthor(data).parse(xml_base))
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
-                category = atom_get_category_tag(data)
+            elif data.tag == AtomCategory.get_element_uri():
+                category = AtomCategory(data).parse()
                 if category:
-                    entry_data.categories.append(atom_get_category_tag(data))
+                    entry_data.categories.append(category)
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'contributor':
                 entry_data.contributors.append(
                     atom_get_contributor_tag(data, xml_base)
@@ -351,8 +363,10 @@ def atom_get_source_tag(data_dump, xml_base):
         if data.tag == AtomAuthor.get_element_uri():
             authors.append(AtomAuthor(data).parse(xml_base))
             source.authors = authors
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
-            categories.append(atom_get_category_tag(data))
+        elif data.tag == AtomCategory.get_element_uri():
+            category = AtomCategory(data).parse()
+            if category:
+                categories.append(category)
             source.categories = categories
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'contributor':
             contributors.append(atom_get_contributor_tag(data, xml_base))
