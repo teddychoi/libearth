@@ -79,6 +79,12 @@ class AtomPersonConstruct(ElementBase):
         return person
 
 
+class AtomDateConstruct(ElementBase):
+
+    def parse(self):
+        return Rfc3339().decode(self.data.text)
+
+
 class AtomId(ElementBase):
     element_name = 'id'
 
@@ -109,6 +115,14 @@ class AtomAuthor(AtomPersonConstruct):
 
 class AtomContributor(AtomPersonConstruct):
     element_name = 'contributor'
+
+
+class AtomPublished(AtomDateConstruct):
+    element_name = 'published'
+
+
+class AtomUpdated(AtomDateConstruct):
+    element_name = 'updated'
 
 
 def parse_atom(xml, feed_url, parse_entry=True):
@@ -172,8 +186,8 @@ def atom_get_feed_data(root, feed_url):
             feed_data.id = alt_id = AtomId(data).parse(xml_base)
         elif data.tag == AtomTitle.get_element_uri():
             feed_data.title = AtomTitle(data).parse()
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
-            feed_data.updated_at = atom_get_updated_tag(data)
+        elif data.tag == AtomUpdated.get_element_uri():
+            feed_data.updated_at = AtomUpdated(data).parse()
         elif data.tag == AtomAuthor.get_element_uri():
             feed_data.authors.append(AtomAuthor(data).parse(xml_base))
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
@@ -216,8 +230,8 @@ def atom_get_entry_data(entries, feed_url):
                 entry_data.id = AtomId(data).parse(xml_base)
             elif data.tag == AtomTitle.get_element_uri():
                 entry_data.title = AtomTitle(data).parse()
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
-                entry_data.updated_at = atom_get_updated_tag(data)
+            elif data.tag == AtomUpdated.get_element_uri():
+                entry_data.updated_at = AtomUpdated(data).parse()
             elif data.tag == AtomAuthor.get_element_uri():
                 entry_data.authors.append(AtomAuthor(data).parse(xml_base))
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
@@ -232,8 +246,8 @@ def atom_get_entry_data(entries, feed_url):
                 entry_data.links.append(atom_get_link_tag(data, xml_base))
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'content':
                 entry_data.content = atom_get_content_tag(data, xml_base)
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'published':
-                entry_data.published_at = atom_get_published_tag(data)
+            elif data.tag == AtomPublished.get_element_uri():
+                entry_data.published_at = AtomPublished(data).parse()
             elif data.tag == AtomRights.get_element_uri():
                 entry_data.rigthts = AtomRights(data).parse()
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'source':
@@ -350,8 +364,8 @@ def atom_get_source_tag(data_dump, xml_base):
             source.id = AtomId(data).parse()
         elif data.tag == AtomTitle.get_element_uri():
             source.title = AtomTitle(data).parse()
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
-            source.updated_at = atom_get_updated_tag(data)
+        elif data.tag == AtomUpdated.get_element_uri():
+            source.updated_at = AtomUpdated(data).parse()
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'generator':
             source.generator = atom_get_generator_tag(data, xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'icon':
