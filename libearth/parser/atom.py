@@ -13,8 +13,6 @@ try:
 except ImportError:
     import urllib.parse as urlparse
 
-from .atom_elements import (AtomId, AtomTitle, AtomSubtitle, AtomRights,
-                            AtomSummary)
 from ..codecs import Rfc3339
 from ..compat.etree import fromstring
 from ..feed import (Category, Content, Entry, Feed, Generator, Link,
@@ -29,6 +27,88 @@ XMLNS_ATOM = 'http://www.w3.org/2005/Atom'
 
 #: (:class:`str`) The XML namespace for the predefined ``xml:`` prefix.
 XMLNS_XML = 'http://www.w3.org/XML/1998/namespace'
+
+
+class ElementBase(object):
+    XMLNS = XMLNS_ATOM
+    element_name = None
+
+    @classmethod
+    def get_element_uri(cls):
+        return '{' + cls.XMLNS + '}' + cls.element_name
+
+    def __init__(self, data):
+        self.data = data
+
+    def parse(self, xml_base=None):
+        raise NotImplementedError('')
+
+    def _get_xml_base(self, default):
+        if '{' + XMLNS_XML + '}' + 'base' in self.data.attrib:
+            return self.data.attrib['{' + XMLNS_XML + '}' + 'base']
+        else:
+            return default
+
+
+class AtomTextConstruct(ElementBase):
+
+    def parse(self):
+        text = Text()
+        text_type = self.data.get('type')
+        if text_type is not None:
+            text.type = text_type
+        if text.type in ('text', 'html'):
+            text.value = self.data.text
+        elif text.value == 'xhtml':
+            text.value = ''  # TODO
+        return text
+
+
+class AtomPersonConstruct(ElementBase):
+
+    def parse(self, xml_base=None):
+        person = Person()
+        xml_base = atom_get_xml_base(self.data, xml_base)
+        for child in self.data:
+            if child.tag == '{' + XMLNS_ATOM + '}' + 'name':
+                person.name = child.text
+            elif child.tag == '{' + XMLNS_ATOM + '}' + 'uri':
+                person.uri = urlparse.urljoin(xml_base, child.text)
+            elif child.tag == '{' + XMLNS_ATOM + '}' + 'email':
+                person.email = child.text
+        return person
+
+
+class AtomId(ElementBase):
+    element_name = 'id'
+
+    def parse(self, xml_base=None):
+        xml_base = self._get_xml_base(xml_base)
+        return urlparse.urljoin(xml_base, self.data.text)
+
+
+class AtomTitle(AtomTextConstruct):
+    element_name = 'title'
+
+
+class AtomSubtitle(AtomTextConstruct):
+    element_name = 'subtitle'
+
+
+class AtomRights(AtomTextConstruct):
+    element_name = 'rights'
+
+
+class AtomSummary(AtomTextConstruct):
+    element_name = 'summary'
+
+
+class AtomAuthor(AtomPersonConstruct):
+    element_name = 'author'
+
+
+class AtomContributor(AtomPersonConstruct):
+    element_name = 'contributor'
 
 
 def parse_atom(xml, feed_url, parse_entry=True):
@@ -94,8 +174,8 @@ def atom_get_feed_data(root, feed_url):
             feed_data.title = AtomTitle(data).parse()
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
             feed_data.updated_at = atom_get_updated_tag(data)
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'author':
-            feed_data.authors.append(atom_get_author_tag(data, xml_base))
+        elif data.tag == AtomAuthor.get_element_uri():
+            feed_data.authors.append(AtomAuthor(data).parse(xml_base))
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
             category = atom_get_category_tag(data)
             if category:
@@ -138,8 +218,8 @@ def atom_get_entry_data(entries, feed_url):
                 entry_data.title = AtomTitle(data).parse()
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'updated':
                 entry_data.updated_at = atom_get_updated_tag(data)
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'author':
-                entry_data.authors.append(atom_get_author_tag(data, xml_base))
+            elif data.tag == AtomAuthor.get_element_uri():
+                entry_data.authors.append(AtomAuthor(data).parse(xml_base))
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
                 category = atom_get_category_tag(data)
                 if category:
@@ -254,8 +334,8 @@ def atom_get_source_tag(data_dump, xml_base):
     links = []
     for data in data_dump:
         xml_base = atom_get_xml_base(data, xml_base)
-        if data.tag == '{' + XMLNS_ATOM + '}' + 'author':
-            authors.append(atom_get_author_tag(data, xml_base))
+        if data.tag == AtomAuthor.get_element_uri():
+            authors.append(AtomAuthor(data).parse(xml_base))
             source.authors = authors
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'category':
             categories.append(atom_get_category_tag(data))
