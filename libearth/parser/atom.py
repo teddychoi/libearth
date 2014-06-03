@@ -174,6 +174,13 @@ class AtomIcon(ElementBase):
         return urlparse.urljoin(xml_base, self.data.text)
 
 
+class AtomLogo(ElementBase):
+    element_name = 'logo'
+
+    def parse(self, xml_base=None):
+        xml_base = self._get_xml_base(xml_base)
+        return urlparse.urljoin(xml_base, self.data.text)
+
 
 def parse_atom(xml, feed_url, parse_entry=True):
     """Atom parser.  It parses the Atom XML and returns the feed data
@@ -257,8 +264,8 @@ def atom_get_feed_data(root, feed_url):
             feed_data.generator = AtomGenerator(data).parse(xml_base)
         elif data.tag == AtomIcon.get_element_uri():
             feed_data.icon = AtomIcon(data).parse(xml_base)
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'logo':
-            feed_data.logo = atom_get_logo_tag(data, xml_base)
+        elif data.tag == AtomLogo.get_element_uri():
+            feed_data.logo = AtomLogo(data).parse(xml_base)
         elif data.tag == AtomRights.get_element_uri():
             feed_data.rights = AtomRights(data).parse()
         elif data.tag == AtomSubtitle.get_element_uri():
@@ -422,8 +429,8 @@ def atom_get_source_tag(data_dump, xml_base):
             source.generator = AtomGenerator(data).parse(xml_base)
         elif data.tag == AtomIcon.get_element_uri():
             source.icon = AtomIcon(data).parse(xml_base)
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'logo':
-            source.logo = atom_get_logo_tag(data, xml_base)
+        elif data.tag == AtomLogo.get_element_uri():
+            source.logo = AtomLogo(data).parse(xml_base)
         elif data.tag == AtomRights.get_element_uri():
             source.rights = AtomRights(data).parse()
         elif data.tag == AtomSubtitle.get_element_uri():
