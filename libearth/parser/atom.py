@@ -32,6 +32,7 @@ XMLNS_XML = 'http://www.w3.org/XML/1998/namespace'
 class ElementBase(object):
     XMLNS = XMLNS_ATOM
     element_name = None
+    need_xml_base = False
 
     @classmethod
     def get_element_uri(cls):
@@ -40,7 +41,7 @@ class ElementBase(object):
     def __init__(self, data):
         self.data = data
 
-    def parse(self, xml_base=None):
+    def parse(self):
         raise NotImplementedError('')
 
     def _get_xml_base(self, default):
@@ -65,6 +66,7 @@ class AtomTextConstruct(ElementBase):
 
 
 class AtomPersonConstruct(ElementBase):
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         person = Person()
@@ -87,6 +89,7 @@ class AtomDateConstruct(ElementBase):
 
 class AtomId(ElementBase):
     element_name = 'id'
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         xml_base = self._get_xml_base(xml_base)
@@ -140,6 +143,7 @@ class AtomCategory(ElementBase):
 
 class AtomLink(ElementBase):
     element_name = 'link'
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         link = Link()
@@ -155,6 +159,7 @@ class AtomLink(ElementBase):
 
 class AtomGenerator(ElementBase):
     element_name = 'generator'
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         generator = Generator()
@@ -168,6 +173,7 @@ class AtomGenerator(ElementBase):
 
 class AtomIcon(ElementBase):
     element_name = 'icon'
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         xml_base = self._get_xml_base(xml_base)
@@ -176,6 +182,7 @@ class AtomIcon(ElementBase):
 
 class AtomLogo(ElementBase):
     element_name = 'logo'
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         xml_base = self._get_xml_base(xml_base)
@@ -184,6 +191,7 @@ class AtomLogo(ElementBase):
 
 class AtomContent(ElementBase):
     element_name = 'content'
+    need_xml_base = True
 
     def parse(self, xml_base=None):
         content = Content()
