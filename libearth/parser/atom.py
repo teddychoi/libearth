@@ -201,9 +201,9 @@ def parse_atom(xml, feed_url, parse_entry=True):
 
     """
     root = fromstring(normalize_xml_encoding(xml))
-    entries = root.findall('{' + XMLNS_ATOM + '}' + 'entry')
     feed_data = atom_get_feed_data(root, feed_url)
     if parse_entry:
+        entries = root.findall('{' + XMLNS_ATOM + '}' + 'entry')
         entries_data = atom_get_entry_data(entries, feed_url)
         feed_data.entries = entries_data
     return feed_data, None
