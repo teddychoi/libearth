@@ -153,6 +153,19 @@ class AtomLink(ElementBase):
         return link
 
 
+class AtomGenerator(ElementBase):
+    element_name = 'generator'
+
+    def parse(self, xml_base=None):
+        generator = Generator()
+        xml_base = self._get_xml_base(xml_base)
+        generator.value = self.data.text
+        if 'uri' in self.data.attrib:
+            generator.uri = urlparse.urljoin(xml_base, self.data.attrib['uri'])
+        generator.version = self.data.get('version')
+        return generator
+
+
 def parse_atom(xml, feed_url, parse_entry=True):
     """Atom parser.  It parses the Atom XML and returns the feed data
     as internal representation.
@@ -231,8 +244,8 @@ def atom_get_feed_data(root, feed_url):
             if link.relation == 'self':
                 alt_id = alt_id or link.uri
             feed_data.links.append(link)
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'generator':
-            feed_data.generator = atom_get_generator_tag(data, xml_base)
+        elif data.tag == AtomGenerator.get_element_uri():
+            feed_data.generator = AtomGenerator(data).parse(xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'icon':
             feed_data.icon = atom_get_icon_tag(data, xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'logo':
@@ -396,8 +409,8 @@ def atom_get_source_tag(data_dump, xml_base):
             source.title = AtomTitle(data).parse()
         elif data.tag == AtomUpdated.get_element_uri():
             source.updated_at = AtomUpdated(data).parse()
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'generator':
-            source.generator = atom_get_generator_tag(data, xml_base)
+        elif data.tag == AtomGenerator.get_element_uri():
+            source.generator = AtomGenerator(data).parse(xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'icon':
             source.icon = atom_get_icon_tag(data, xml_base)
         elif data.tag == '{' + XMLNS_ATOM + '}' + 'logo':
