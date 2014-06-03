@@ -126,6 +126,7 @@ class AtomUpdated(AtomDateConstruct):
 
 
 class AtomCategory(ElementBase):
+    element_name = 'category'
 
     def parse(self):
         if not self.data.get('term'):
