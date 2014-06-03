@@ -138,6 +138,21 @@ class AtomCategory(ElementBase):
         return category
 
 
+class AtomLink(ElementBase):
+    element_name = 'link'
+
+    def parse(self, xml_base=None):
+        link = Link()
+        xml_base = self._get_xml_base(xml_base)
+        link.uri = urlparse.urljoin(xml_base, self.data.get('href'))
+        link.relation = self.data.get('rel')
+        link.mimetype = self.data.get('type')
+        link.language = self.data.get('hreflang')
+        link.title = self.data.get('title')
+        link.byte_size = self.data.get('length')
+        return link
+
+
 def parse_atom(xml, feed_url, parse_entry=True):
     """Atom parser.  It parses the Atom XML and returns the feed data
     as internal representation.
@@ -211,8 +226,8 @@ def atom_get_feed_data(root, feed_url):
             feed_data.contributors.append(
                 AtomContributor(data).parse(xml_base)
             )
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
-            link = atom_get_link_tag(data, xml_base)
+        elif data.tag == AtomLink.get_element_uri():
+            link = AtomLink(data).parse(xml_base)
             if link.relation == 'self':
                 alt_id = alt_id or link.uri
             feed_data.links.append(link)
@@ -255,8 +270,8 @@ def atom_get_entry_data(entries, feed_url):
                 entry_data.contributors.append(
                     AtomContributor(data).parse(xml_base)
                 )
-            elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
-                entry_data.links.append(atom_get_link_tag(data, xml_base))
+            elif data.tag == AtomLink.get_element_uri():
+                entry_data.links.append(AtomLink(data).parse(xml_base))
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'content':
                 entry_data.content = atom_get_content_tag(data, xml_base)
             elif data.tag == AtomPublished.get_element_uri():
@@ -372,8 +387,8 @@ def atom_get_source_tag(data_dump, xml_base):
         elif data.tag == AtomContributor.get_element_uri():
             contributors.append(AtomContributor(data).parse(xml_base))
             source.contributors = contributors
-        elif data.tag == '{' + XMLNS_ATOM + '}' + 'link':
-            links.append(atom_get_link_tag(data, xml_base))
+        elif data.tag == AtomLink.get_element_uri():
+            links.append(AtomLink(data).parse(xml_base))
             source.links = links
         elif data.tag == AtomId.get_element_uri():
             source.id = AtomId(data).parse()
