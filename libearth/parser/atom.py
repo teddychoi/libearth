@@ -106,7 +106,6 @@ class AtomTextConstruct(ElementBase):
 
 
 class AtomPersonConstruct(ElementBase):
-    need_xml_base = True
 
     def parse(self):
         person = Person()
@@ -129,7 +128,6 @@ class AtomDateConstruct(ElementBase):
 
 class AtomId(ElementBase):
     element_name = 'id'
-    need_xml_base = True
 
     def parse(self):
         xml_base = self._get_xml_base()
@@ -183,7 +181,6 @@ class AtomCategory(ElementBase):
 
 class AtomLink(ElementBase):
     element_name = 'link'
-    need_xml_base = True
 
     def parse(self):
         link = Link()
@@ -199,7 +196,6 @@ class AtomLink(ElementBase):
 
 class AtomGenerator(ElementBase):
     element_name = 'generator'
-    need_xml_base = True
 
     def parse(self):
         generator = Generator()
@@ -213,7 +209,6 @@ class AtomGenerator(ElementBase):
 
 class AtomIcon(ElementBase):
     element_name = 'icon'
-    need_xml_base = True
 
     def parse(self):
         xml_base = self._get_xml_base()
@@ -222,7 +217,6 @@ class AtomIcon(ElementBase):
 
 class AtomLogo(ElementBase):
     element_name = 'logo'
-    need_xml_base = True
 
     def parse(self):
         xml_base = self._get_xml_base()
@@ -231,7 +225,6 @@ class AtomLogo(ElementBase):
 
 class AtomContent(ElementBase):
     element_name = 'content'
-    need_xml_base = True
 
     def parse(self):
         content = Content()
