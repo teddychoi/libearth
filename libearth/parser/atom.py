@@ -54,6 +54,21 @@ class ElementBase(object):
 
 class RootElement(object):
 
+    def parse_meta_data(self, element_obj):
+        element_obj.id = self.parse_element(AtomId) or self.xml_base
+        element_obj.title = self.parse_element(AtomTitle)
+        element_obj.updated_at = self.parse_element(AtomUpdated)
+        element_obj.authors = self.parse_multiple_element(AtomAuthor)
+        element_obj.categories = self.parse_multiple_element(AtomCategory)
+        element_obj.contributors = self.parse_multiple_element(AtomContributor)
+        element_obj.links = self.parse_multiple_element(AtomLink)
+        element_obj.generator = self.parse_element(AtomGenerator)
+        element_obj.icon = self.parse_element(AtomIcon)
+        element_obj.logo = self.parse_element(AtomLogo)
+        element_obj.rights = self.parse_element(AtomRights)
+        element_obj.subtitle = self.parse_element(AtomSubtitle)
+        return element_obj
+
     def parse_element(self, element_type):
         element = self.data.findall(element_type.get_element_uri())
         num_of_element = len(element)
@@ -78,34 +93,14 @@ class AtomFeed(ElementBase, RootElement):
     element_name = 'feed'
 
     def parse(self):
-        feed = Feed()
-        feed.id = self.parse_element(AtomId) or self.xml_base
-        feed.title = self.parse_element(AtomTitle)
-        feed.updated_at = self.parse_element(AtomUpdated)
-        feed.authors = self.parse_multiple_element(AtomAuthor)
-        feed.categories = self.parse_multiple_element(AtomCategory)
-        feed.contributors = self.parse_multiple_element(AtomContributor)
-        feed.links = self.parse_multiple_element(AtomLink)
-        feed.generator = self.parse_element(AtomGenerator)
-        feed.icon = self.parse_element(AtomIcon)
-        feed.logo = self.parse_element(AtomLogo)
-        feed.rights = self.parse_element(AtomRights)
-        feed.subtitle = self.parse_element(AtomSubtitle)
-        return feed
+        return self.parse_meta_data(Feed())
 
 
 class AtomEntry(ElementBase, RootElement):
     element_name = 'entry'
 
     def parse(self):
-        entry = Entry()
-        entry.id = self.parse_element(AtomId) or self.xml_base
-        entry.title = self.parse_element(AtomTitle)
-        entry.updated_at = self.parse_element(AtomUpdated)
-        entry.authors = self.parse_multiple_element(AtomAuthor)
-        entry.categories = self.parse_multiple_element(AtomCategory)
-        entry.contributors = self.parse_multiple_element(AtomContributor)
-        entry.links = self.parse_multiple_element(AtomLink)
+        entry = self.parse_meta_data(Entry())
         entry.content = self.parse_element(AtomContent)
         entry.published_at = self.parse_element(AtomPublished)
         entry.rights = self.parse_element(AtomRights)
@@ -118,20 +113,7 @@ class AtomSource(ElementBase, RootElement):
     element_name = 'source'
 
     def parse(self):
-        source = Source()
-        source.authors = self.parse_multiple_element(AtomAuthor)
-        source.categories = self.parse_multiple_element(AtomCategory)
-        source.contributors = self.parse_multiple_element(AtomContributor)
-        source.links = self.parse_multiple_element(AtomLink)
-        source.id = self.parse_element(AtomId)
-        source.title = self.parse_element(AtomTitle)
-        source.updated_at = self.parse_element(AtomUpdated)
-        source.generator = self.parse_element(AtomGenerator)
-        source.icon = self.parse_element(AtomIcon)
-        source.logo = self.parse_element(AtomLogo)
-        source.rights = self.parse_element(AtomRights)
-        source.subtitle = self.parse_element(AtomSubtitle)
-        return source
+        return self.parse_meta_data(Source())
 
 
 class AtomTextConstruct(ElementBase):
