@@ -32,23 +32,24 @@ XMLNS_XML = 'http://www.w3.org/XML/1998/namespace'
 class ElementBase(object):
     XMLNS = XMLNS_ATOM
     element_name = None
-    need_xml_base = False
+    xml_base = None
 
     @classmethod
     def get_element_uri(cls):
         return '{' + cls.XMLNS + '}' + cls.element_name
 
-    def __init__(self, data):
+    def __init__(self, data, xml_base=None):
         self.data = data
+        self.xml_base = xml_base
 
     def parse(self):
         raise NotImplementedError('')
 
-    def _get_xml_base(self, default):
+    def _get_xml_base(self):
         if '{' + XMLNS_XML + '}' + 'base' in self.data.attrib:
             return self.data.attrib['{' + XMLNS_XML + '}' + 'base']
         else:
-            return default
+            return self.xml_base
 
 
 class AtomFeed(ElementBase):
@@ -56,22 +57,21 @@ class AtomFeed(ElementBase):
 
     def parse(self, xml_base=None):
         feed = Feed()
-        feed.id = self.parse_element(AtomId, xml_base) or xml_base
-        feed.title = self.parse_element(AtomTitle, None)
-        feed.updated_at = self.parse_element(AtomUpdated, None)
-        feed.authors = self.parse_multiple_element(AtomAuthor, xml_base)
-        feed.categories = self.parse_multiple_element(AtomCategory, xml_base)
-        feed.contributors = self.parse_multiple_element(AtomContributor,
-                                                        xml_base)
-        feed.links = self.parse_multiple_element(AtomLink, xml_base)
-        feed.generator = self.parse_element(AtomGenerator, xml_base)
-        feed.icon = self.parse_element(AtomIcon, xml_base)
-        feed.logo = self.parse_element(AtomLogo, xml_base)
-        feed.rights = self.parse_element(AtomRights, None)
-        feed.subtitle = self.parse_element(AtomSubtitle, None)
+        feed.id = self.parse_element(AtomId) or xml_base
+        feed.title = self.parse_element(AtomTitle)
+        feed.updated_at = self.parse_element(AtomUpdated)
+        feed.authors = self.parse_multiple_element(AtomAuthor)
+        feed.categories = self.parse_multiple_element(AtomCategory)
+        feed.contributors = self.parse_multiple_element(AtomContributor)
+        feed.links = self.parse_multiple_element(AtomLink)
+        feed.generator = self.parse_element(AtomGenerator)
+        feed.icon = self.parse_element(AtomIcon)
+        feed.logo = self.parse_element(AtomLogo)
+        feed.rights = self.parse_element(AtomRights)
+        feed.subtitle = self.parse_element(AtomSubtitle)
         return feed
 
-    def parse_element(self, element_type, xml_base):
+    def parse_element(self, element_type):
         element = self.data.findall(element_type.get_element_uri())
         for element_ in element:
             print element_.text
@@ -83,20 +83,14 @@ class AtomFeed(ElementBase):
         elif num_of_element == 0:
             return None
         element = element[0]
-        if element_type.need_xml_base:
-            return element_type(element).parse(xml_base)
-        else:
-            return element_type(element).parse()
+        return element_type(element, self.xml_base).parse()
 
 
-    def parse_multiple_element(self, element_type, xml_base):
+    def parse_multiple_element(self, element_type):
         elements = self.data.findall(element_type.get_element_uri())
         parsed_elements = []
         for element in elements:
-            if element_type.need_xml_base:
-                parsed_elements.append(element_type(element).parse(xml_base))
-            else:
-                parsed_elements.append(element_type(element).parse())
+            parsed_elements.append(element_type(element, self.xml_base).parse())
         return parsed_elements
 
 
@@ -119,7 +113,7 @@ class AtomPersonConstruct(ElementBase):
 
     def parse(self, xml_base=None):
         person = Person()
-        xml_base = self._get_xml_base(xml_base)
+        xml_base = self._get_xml_base()
         for child in self.data:
             if child.tag == '{' + XMLNS_ATOM + '}' + 'name':
                 person.name = child.text
@@ -141,7 +135,7 @@ class AtomId(ElementBase):
     need_xml_base = True
 
     def parse(self, xml_base=None):
-        xml_base = self._get_xml_base(xml_base)
+        xml_base = self._get_xml_base()
         return urlparse.urljoin(xml_base, self.data.text)
 
 
@@ -196,7 +190,7 @@ class AtomLink(ElementBase):
 
     def parse(self, xml_base=None):
         link = Link()
-        xml_base = self._get_xml_base(xml_base)
+        xml_base = self._get_xml_base()
         link.uri = urlparse.urljoin(xml_base, self.data.get('href'))
         link.relation = self.data.get('rel')
         link.mimetype = self.data.get('type')
@@ -212,7 +206,7 @@ class AtomGenerator(ElementBase):
 
     def parse(self, xml_base=None):
         generator = Generator()
-        xml_base = self._get_xml_base(xml_base)
+        xml_base = self._get_xml_base()
         generator.value = self.data.text
         if 'uri' in self.data.attrib:
             generator.uri = urlparse.urljoin(xml_base, self.data.attrib['uri'])
@@ -225,7 +219,7 @@ class AtomIcon(ElementBase):
     need_xml_base = True
 
     def parse(self, xml_base=None):
-        xml_base = self._get_xml_base(xml_base)
+        xml_base = self._get_xml_base()
         return urlparse.urljoin(xml_base, self.data.text)
 
 
@@ -234,7 +228,7 @@ class AtomLogo(ElementBase):
     need_xml_base = True
 
     def parse(self, xml_base=None):
-        xml_base = self._get_xml_base(xml_base)
+        xml_base = self._get_xml_base()
         return urlparse.urljoin(xml_base, self.data.text)
 
 
@@ -249,7 +243,7 @@ class AtomContent(ElementBase):
         if content_type is not None:
             content.type = content_type
         if 'src' in self.data.attrib:
-            xml_base = self._get_xml_base(xml_base)
+            xml_base = self._get_xml_base()
             content.source_uri = urlparse.urljoin(xml_base,
                                                   self.data.attrib['src'])
         return content
@@ -332,33 +326,33 @@ def atom_get_entry_data(entries, feed_url):
         xml_base = atom_get_xml_base(entry, feed_url)
         for data in entry:
             if data.tag == AtomId.get_element_uri():
-                entry_data.id = AtomId(data).parse(xml_base)
+                entry_data.id = AtomId(data, xml_base).parse()
             elif data.tag == AtomTitle.get_element_uri():
-                entry_data.title = AtomTitle(data).parse()
+                entry_data.title = AtomTitle(data, xml_base).parse()
             elif data.tag == AtomUpdated.get_element_uri():
-                entry_data.updated_at = AtomUpdated(data).parse()
+                entry_data.updated_at = AtomUpdated(data, xml_base).parse()
             elif data.tag == AtomAuthor.get_element_uri():
-                entry_data.authors.append(AtomAuthor(data).parse(xml_base))
+                entry_data.authors.append(AtomAuthor(data, xml_base).parse())
             elif data.tag == AtomCategory.get_element_uri():
-                category = AtomCategory(data).parse()
+                category = AtomCategory(data, xml_base).parse()
                 if category:
                     entry_data.categories.append(category)
             elif data.tag == AtomContributor.get_element_uri():
                 entry_data.contributors.append(
-                    AtomContributor(data).parse(xml_base)
+                    AtomContributor(data, xml_base).parse()
                 )
             elif data.tag == AtomLink.get_element_uri():
-                entry_data.links.append(AtomLink(data).parse(xml_base))
+                entry_data.links.append(AtomLink(data, xml_base).parse())
             elif data.tag == AtomContent.get_element_uri():
-                entry_data.content = AtomContent(data).parse(xml_base)
+                entry_data.content = AtomContent(data, xml_base).parse()
             elif data.tag == AtomPublished.get_element_uri():
-                entry_data.published_at = AtomPublished(data).parse()
+                entry_data.published_at = AtomPublished(data, xml_base).parse()
             elif data.tag == AtomRights.get_element_uri():
-                entry_data.rigthts = AtomRights(data).parse()
+                entry_data.rigthts = AtomRights(data, xml_base).parse()
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'source':
                 entry_data.source = atom_get_source_tag(data, xml_base)
             elif data.tag == AtomSummary.get_element_uri():
-                entry_data.summary = AtomSummary(data).parse()
+                entry_data.summary = AtomSummary(data, xml_base).parse()
         entries_data.append(entry_data)
     return entries_data
 
@@ -380,33 +374,33 @@ def atom_get_source_tag(data_dump, xml_base):
     for data in data_dump:
         xml_base = atom_get_xml_base(data, xml_base)
         if data.tag == AtomAuthor.get_element_uri():
-            authors.append(AtomAuthor(data).parse(xml_base))
+            authors.append(AtomAuthor(data, xml_base).parse())
             source.authors = authors
         elif data.tag == AtomCategory.get_element_uri():
-            category = AtomCategory(data).parse()
+            category = AtomCategory(data, xml_base).parse()
             if category:
                 categories.append(category)
             source.categories = categories
         elif data.tag == AtomContributor.get_element_uri():
-            contributors.append(AtomContributor(data).parse(xml_base))
+            contributors.append(AtomContributor(data, xml_base).parse())
             source.contributors = contributors
         elif data.tag == AtomLink.get_element_uri():
-            links.append(AtomLink(data).parse(xml_base))
+            links.append(AtomLink(data, xml_base).parse())
             source.links = links
         elif data.tag == AtomId.get_element_uri():
-            source.id = AtomId(data).parse()
+            source.id = AtomId(data, xml_base).parse()
         elif data.tag == AtomTitle.get_element_uri():
-            source.title = AtomTitle(data).parse()
+            source.title = AtomTitle(data, xml_base).parse()
         elif data.tag == AtomUpdated.get_element_uri():
-            source.updated_at = AtomUpdated(data).parse()
+            source.updated_at = AtomUpdated(data, xml_base).parse()
         elif data.tag == AtomGenerator.get_element_uri():
-            source.generator = AtomGenerator(data).parse(xml_base)
+            source.generator = AtomGenerator(data, xml_base).parse()
         elif data.tag == AtomIcon.get_element_uri():
-            source.icon = AtomIcon(data).parse(xml_base)
+            source.icon = AtomIcon(data, xml_base).parse()
         elif data.tag == AtomLogo.get_element_uri():
-            source.logo = AtomLogo(data).parse(xml_base)
+            source.logo = AtomLogo(data, xml_base).parse()
         elif data.tag == AtomRights.get_element_uri():
-            source.rights = AtomRights(data).parse()
+            source.rights = AtomRights(data, xml_base).parse()
         elif data.tag == AtomSubtitle.get_element_uri():
-            source.subtitle = AtomSubtitle(data).parse()
+            source.subtitle = AtomSubtitle(data, xml_base).parse()
     return source
