@@ -52,24 +52,7 @@ class ElementBase(object):
             return self.xml_base
 
 
-class AtomFeed(ElementBase):
-    element_name = 'feed'
-
-    def parse(self):
-        feed = Feed()
-        feed.id = self.parse_element(AtomId) or self.xml_base
-        feed.title = self.parse_element(AtomTitle)
-        feed.updated_at = self.parse_element(AtomUpdated)
-        feed.authors = self.parse_multiple_element(AtomAuthor)
-        feed.categories = self.parse_multiple_element(AtomCategory)
-        feed.contributors = self.parse_multiple_element(AtomContributor)
-        feed.links = self.parse_multiple_element(AtomLink)
-        feed.generator = self.parse_element(AtomGenerator)
-        feed.icon = self.parse_element(AtomIcon)
-        feed.logo = self.parse_element(AtomLogo)
-        feed.rights = self.parse_element(AtomRights)
-        feed.subtitle = self.parse_element(AtomSubtitle)
-        return feed
+class RootElement(object):
 
     def parse_element(self, element_type):
         element = self.data.findall(element_type.get_element_uri())
@@ -89,6 +72,26 @@ class AtomFeed(ElementBase):
         for element in elements:
             parsed_elements.append(element_type(element, self.xml_base).parse())
         return parsed_elements
+
+
+class AtomFeed(ElementBase, RootElement):
+    element_name = 'feed'
+
+    def parse(self):
+        feed = Feed()
+        feed.id = self.parse_element(AtomId) or self.xml_base
+        feed.title = self.parse_element(AtomTitle)
+        feed.updated_at = self.parse_element(AtomUpdated)
+        feed.authors = self.parse_multiple_element(AtomAuthor)
+        feed.categories = self.parse_multiple_element(AtomCategory)
+        feed.contributors = self.parse_multiple_element(AtomContributor)
+        feed.links = self.parse_multiple_element(AtomLink)
+        feed.generator = self.parse_element(AtomGenerator)
+        feed.icon = self.parse_element(AtomIcon)
+        feed.logo = self.parse_element(AtomLogo)
+        feed.rights = self.parse_element(AtomRights)
+        feed.subtitle = self.parse_element(AtomSubtitle)
+        return feed
 
 
 class AtomTextConstruct(ElementBase):
