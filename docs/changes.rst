@@ -1,10 +1,65 @@
 Libearth Changelog
 ==================
 
-Version 0.2.0
+Version 0.3.0
 -------------
 
 To be released.
+
+- Root :class:`~libearth.session.MergeableDocumentElement`\ s'
+  :meth:`~libearth.session.MergeableDocumentElement.__merge_entities__()`
+  methods are not ignored anymore.  Respnosibilty to merge two documents is
+  now moved from :meth:`Session.merge() <libearth.session.Session.merge>`
+  method to :meth:`MergeableDocumentElement.__merge_entities__()
+  <libearth.session.MergeableDocumentElement.__merge_entities__>` method.
+- :func:`~libearth.crawler.crawl()` now return a set of
+  :class:`~libearth.crawler.CrawlResult` objects instead of :class:`tuple`\ s.
+- ``feeds`` parameter of :func:`~libearth.crawler.crawl()` function was
+  renamed to ``feed_urls``.
+- Added :attr:`LinkList.favicon <libearth.feed.LinkList.favicon>` property.
+  [:issue:`49`]
+- :meth:`AutoDiscovery.find_feed_url()
+  <libearth.parser.autodiscovery.AutoDiscovery.find_feed_url>` method (that
+  returned feed links) was gone.  Instead :meth:`AutoDiscovery.find()
+  <libearth.parser.autodiscovery.AutoDiscovery.find>` method (that returns
+  a pair of feed links and favicon links) was introduced.
+  [:issue:`49`]
+- :attr:`Subscription.icon_uri <libearth.subscribe.Subscription.icon_uri>`
+  attribute was introduced.  [:issue:`49`]
+- Added an optional ``icon_uri`` parameter to :meth:`SubscriptionSet.subscribe()
+  <libearth.subscribe.SubscriptionSet.subscribe>` method.  [:issue:`49`]
+- Added :func:`~libearth.parser.util.normalize_xml_encoding()`
+  function to workaround :mod:`xml.etree.ElementTree` module's
+  `encoding detection bug`__.  [:issue:`41`]
+- Added :func:`~libearth.tz.guess_tzinfo_by_locale()` function.  [:issue:`41`]
+- Added ``microseconds`` option to :class:`~libearth.codecs.Rfc822` codec.
+- Fixed incorrect merge of subscription/category deletion.
+
+  - Subscriptions are now archived rather than deleted.
+  - :class:`~libearth.subscribe.Outline` (which is a common superclass of
+    :class:`~libearth.subscribe.Subscription` and
+    :class:`~libearth.subscribe.Category`) now has
+    :attr:`~libearth.subscribe.Outline.deleted_at` attribute and
+    :attr:`~libearth.subscribe.Outline.deleted` property.
+
+__ http://bugs.python.org/issue13612
+
+
+Version 0.2.1
+-------------
+
+To be released.
+
+- Fixed :mod:`~libearth.parser.rss2` parsing error when any empty element
+  occurs.
+- Fixed a bug that :func:`~libearth.schema.validate()` function errored
+  when any subelement has :class:`~libearth.schema.Text` descriptor.
+
+
+Version 0.2.0
+-------------
+
+Released April 22, 2014.
 
 - Session files in :file:`.sessions/` directory become to be touched
   only once at a transaction.  [:issue:`43`]

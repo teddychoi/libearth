@@ -13,14 +13,15 @@ except ImportError:
     import urllib.request as urllib2
 
 from pytest import raises, mark
-import mock
 
 from libearth.compat import UNICODE_BY_DEFAULT, text_type
 from libearth.feed import Feed
 from libearth.parser.atom import parse_atom
-from libearth.parser.autodiscovery import (FeedUrlNotFoundError, autodiscovery,
-                                           get_format)
+from libearth.parser.autodiscovery import (AutoDiscovery, FeedLink,
+                                           FeedUrlNotFoundError,
+                                           autodiscovery, get_format)
 from libearth.parser.rss2 import parse_rss
+from libearth.parser.util import normalize_xml_encoding
 from libearth.schema import read, write
 from libearth.tz import utc
 
@@ -39,9 +40,15 @@ atom_blog = '''
 
 
 def test_autodiscovery_atom():
-    feedlink = autodiscovery(atom_blog, None)[0]
-    assert feedlink.type == 'application/atom+xml'
-    assert feedlink.url == 'http://vio.atomtest.com/feed/atom/'
+    expected = [
+        FeedLink(type='application/atom+xml',
+                 url='http://vio.atomtest.com/feed/atom/')
+    ]
+    feedlinks = autodiscovery(atom_blog, None)
+    assert feedlinks == expected
+    feed_links, icon_links = AutoDiscovery().find(atom_blog)
+    assert feed_links == expected
+    assert icon_links == []
 
 
 rss_blog = '''
@@ -58,9 +65,15 @@ rss_blog = '''
 
 
 def test_autodiscovery_rss2():
-    feedlink = autodiscovery(rss_blog, None)[0]
-    assert feedlink.type == 'application/rss+xml'
-    assert feedlink.url == 'http://vio.rsstest.com/feed/rss/'
+    expected = [
+        FeedLink(type='application/rss+xml',
+                 url='http://vio.rsstest.com/feed/rss/')
+    ]
+    feedlinks = autodiscovery(rss_blog, None)
+    assert feedlinks == expected
+    feed_links, icon_links = AutoDiscovery().find(rss_blog)
+    assert feed_links == expected
+    assert icon_links == []
 
 
 html_with_no_feed_url = b'''
@@ -76,6 +89,8 @@ html_with_no_feed_url = b'''
 def test_autodiscovery_with_no_feed_url():
     with raises(FeedUrlNotFoundError):
         autodiscovery(html_with_no_feed_url, None)
+    feed_links, icon_links = AutoDiscovery().find(html_with_no_feed_url)
+    assert feed_links == icon_links == []
 
 
 binary_rss_blog = b'''
@@ -92,9 +107,15 @@ binary_rss_blog = b'''
 
 
 def test_autodiscovery_with_binary():
-    feedlink = autodiscovery(binary_rss_blog, None)[0]
-    assert feedlink.type == 'application/rss+xml'
-    assert feedlink.url == 'http://vio.rsstest.com/feed/rss/'
+    expected = [
+        FeedLink(type='application/rss+xml',
+                 url='http://vio.rsstest.com/feed/rss/')
+    ]
+    feedlinks = autodiscovery(binary_rss_blog, None)
+    assert feedlinks == expected
+    feed_links, icon_links = AutoDiscovery().find(binary_rss_blog)
+    assert feed_links == expected
+    assert icon_links == []
 
 
 blog_with_two_feeds = '''
@@ -104,6 +125,8 @@ blog_with_two_feeds = '''
             href="http://vio.rsstest.com/feed/rss/" />
         <link rel="alternate" type="application/atom+xml"
             href="http://vio.atomtest.com/feed/atom/" />
+        <link rel="shortcut icon" href="http://vio.atomtest.com/favicon.ico"/>
+        <link rel="icon" href="http://vio.atomtest.com/icon.png"/>
     </head>
     <body>
         Test
@@ -113,11 +136,20 @@ blog_with_two_feeds = '''
 
 
 def test_autodiscovery_with_two_feeds():
-    feedlinks = autodiscovery(blog_with_two_feeds, None)
-    assert feedlinks[0].type == 'application/atom+xml'
-    assert feedlinks[0].url == 'http://vio.atomtest.com/feed/atom/'
-    assert feedlinks[1].type == 'application/rss+xml'
-    assert feedlinks[1].url == 'http://vio.rsstest.com/feed/rss/'
+    expected = [
+        FeedLink(type='application/atom+xml',
+                 url='http://vio.atomtest.com/feed/atom/'),
+        FeedLink(type='application/rss+xml',
+                 url='http://vio.rsstest.com/feed/rss/')
+    ]
+    feed_links = autodiscovery(blog_with_two_feeds, None)
+    assert feed_links == expected
+    feed_links, icon_links = AutoDiscovery().find(blog_with_two_feeds)
+    assert feed_links == expected
+    assert icon_links == [
+        'http://vio.atomtest.com/favicon.ico',
+        'http://vio.atomtest.com/icon.png'
+    ]
 
 
 relative_feed_url = '''
@@ -506,23 +538,6 @@ def test_rss_parser():
     assert not source.entries
 
 
-def test_log_warnings_during_rss_parsing():
-    my_opener = urllib2.build_opener(TestHTTPHandler)
-    urllib2.install_opener(my_opener)
-    with mock.patch('logging.getLogger') as mock_func:
-        crawled_feed, data_for_crawl = parse_rss(
-            rss_xml,
-            'http://sourcetest.com/rss.xml'
-        )
-    mock_func.assert_any_call('libearth.parser.rss2.rss_get_channel_data')
-    mock_func.assert_any_call('libearth.parser.rss2.rss_get_item_data')
-    mock_logger = mock_func.return_value
-    for call in mock_logger.method_calls:
-        name, args, _ = call
-        assert name == 'warn'
-        assert args[0] == 'Unknown tag: %s'
-
-
 category_with_no_term = '''
 <feed>
     <id>categorywithnoterm.com</id>
@@ -618,3 +633,20 @@ def test_rss_without_title():
     assert not feed.entries
     assert (text_type(feed.title) == text_type(feed.subtitle) ==
             'only description')
+
+
+def test_normalize_xml_encoding():
+    assert normalize_xml_encoding(b'''
+        <?xml version="1.0" encoding="euc-kr" ?>
+        <doc title="\xc0\xce\xc4\xda\xb5\xf9 \xc5\xd7\xbd\xba\xc6\xae" />
+    ''').strip() == (
+        b'<doc title="\xec\x9d\xb8\xec\xbd\x94\xeb\x94\xa9 '
+        b'\xed\x85\x8c\xec\x8a\xa4\xed\x8a\xb8" />'
+    )
+    assert normalize_xml_encoding(b'''
+        <?xml encoding='euc-kr' ?>
+        <doc title="\xc0\xce\xc4\xda\xb5\xf9 \xc5\xd7\xbd\xba\xc6\xae" />
+    ''').strip() == (
+        b'<doc title="\xec\x9d\xb8\xec\xbd\x94\xeb\x94\xa9 '
+        b'\xed\x85\x8c\xec\x8a\xa4\xed\x8a\xb8" />'
+    )

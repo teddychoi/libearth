@@ -17,6 +17,7 @@ from ..codecs import Rfc3339
 from ..compat.etree import fromstring
 from ..feed import (Category, Content, Entry, Feed, Generator, Link,
                     Person, Source, Text)
+from .util import normalize_xml_encoding
 
 __all__ = 'XMLNS_ATOM', 'XMLNS_XML', 'parse_atom'
 
@@ -46,7 +47,7 @@ def parse_atom(xml, feed_url, parse_entry=True):
     :rtype: :class:`tuple`
 
     """
-    root = fromstring(xml)
+    root = fromstring(normalize_xml_encoding(xml))
     entries = root.findall('{' + XMLNS_ATOM + '}' + 'entry')
     feed_data = atom_get_feed_data(root, feed_url)
     if parse_entry:
@@ -152,7 +153,7 @@ def atom_get_entry_data(entries, feed_url):
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'published':
                 entry_data.published_at = atom_get_published_tag(data)
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'rights':
-                entry_data['rigths'] = atom_get_rights_tag(data)
+                entry_data.rigthts = atom_get_rights_tag(data)
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'source':
                 entry_data.source = atom_get_source_tag(data, xml_base)
             elif data.tag == '{' + XMLNS_ATOM + '}' + 'summary':

@@ -1,19 +1,22 @@
+import datetime
 try:
     import httplib
 except ImportError:
     from http import client as httplib
+import io
+import os.path
 try:
     import urllib2
 except ImportError:
     from urllib import request as urllib2
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
 
-from pytest import raises
+from pytest import mark, raises
 
-from libearth.crawler import crawl, CrawlError
+from libearth.compat import IRON_PYTHON, text_type
+from libearth.crawler import CrawlError, CrawlResult, crawl, get_feed
+from libearth.feed import Feed, Link, Text
+from libearth.subscribe import Category, SubscriptionList
+from libearth.tz import utc
 
 
 atom_xml = """
@@ -25,6 +28,7 @@ atom_xml = """
     <link rel="alternate" type="text/html" href="http://vio.atomtest.com/" />
     <link rel="self" type="application/atom+xml"
         href="http://vio.atomtest.com/feed/atom" />
+    <link rel="icon" href="http://vio.atomtest.com/favicon.ico" />
     <author>
         <name>vio</name>
         <email>vio.bo94@gmail.com</email>
@@ -91,7 +95,7 @@ rss_xml = """
 <rss version="2.0">
 <channel>
     <title>Vio Blog</title>
-    <link>http://vioblog.com</link>
+    <link>http://rsstest.com/</link>
     <description>earthreader</description>
     <copyright>Copyright2013, Vio</copyright>
     <managingEditor>vio.bo94@gmail.com</managingEditor>
@@ -118,6 +122,19 @@ rss_xml = """
 """
 
 
+rss_website_html = '''\
+<!DOCTYPE>
+<html>
+<head>
+  <title>RSS Test</title>
+  <link rel="shotcut icon" href="images/favicon.ico">
+</head>
+<body>
+</body>
+</html>
+'''
+
+
 rss_source_xml = """
 <rss version="2.0">
     <channel>
@@ -132,6 +149,25 @@ rss_source_xml = """
 </rss>
 """
 
+favicon_test_atom_xml = '''
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <title type="text">Favicon Test</title>
+    <id>http://favicontest.com/atom.xml</id>
+    <updated>2013-08-19T07:49:20+07:00</updated>
+    <link type="text/html" rel="alternate" href="http://favicontest.com/" />
+</feed>
+'''
+
+favicon_test_website_xml = '''
+<!DOCTYPE html>
+<html>
+<head><title>Favicon Test</title></head>
+<body></body>
+</html>
+'''
+
+with open(os.path.join(os.path.dirname(__file__), 'favicon.ico'), 'rb') as f:
+    favicon_test_favicon_ico = f.read()
 
 broken_rss = """
 <rss version="2.0">
@@ -146,8 +182,14 @@ mock_urls = {
     'http://reversedentries.com/feed/atom': (200, 'application/atom+xml',
                                              atom_reversed_entries),
     'http://rsstest.com/rss.xml': (200, 'application/rss+xml', rss_xml),
+    'http://rsstest.com/': (200, 'text/html', rss_website_html),
     'http://sourcetest.com/rss.xml': (200, 'application/rss+xml',
                                       rss_source_xml),
+    'http://favicontest.com/atom.xml': (200, 'application/atom+xml',
+                                        favicon_test_atom_xml),
+    'http://favicontest.com/': (200, 'text/html', favicon_test_website_xml),
+    'http://favicontest.com/favicon.ico': (200, 'image/vnd.microsoft.icon',
+                                           favicon_test_favicon_ico),
     'http://brokenrss.com/rss': (200, 'application/rss+xml', broken_rss)
 }
 
@@ -160,9 +202,14 @@ class TestHTTPHandler(urllib2.HTTPHandler):
             status_code, mimetype, content = mock_urls[url]
         except KeyError:
             return urllib2.HTTPHandler.http_open(self, req)
-        resp = urllib2.addinfourl(StringIO(content),
-                                  {'content-type': mimetype},
-                                  url)
+        if IRON_PYTHON:
+            from StringIO import StringIO
+            buffer_ = StringIO(content)
+        elif isinstance(content, text_type):
+            buffer_ = io.StringIO(content)
+        else:
+            buffer_ = io.BytesIO(content)
+        resp = urllib2.addinfourl(buffer_, {'content-type': mimetype}, url)
         resp.code = status_code
         resp.msg = httplib.responses[status_code]
         return resp
@@ -172,19 +219,30 @@ def test_crawler():
     my_opener = urllib2.build_opener(TestHTTPHandler)
     urllib2.install_opener(my_opener)
     feeds = ['http://vio.atomtest.com/feed/atom',
-             'http://rsstest.com/rss.xml']
+             'http://rsstest.com/rss.xml',
+             'http://favicontest.com/atom.xml']
     generator = crawl(feeds, 4)
     for result in generator:
-        feed_data = result[1]
+        feed_data = result.feed
         if feed_data.title.value == 'Atom Test':
             entries = feed_data.entries
             assert entries[0].title.value == 'xml base test'
             assert entries[1].title.value == 'Title One'
+            assert result.hints is None
+            assert result.icon_url == 'http://vio.atomtest.com/favicon.ico'
         elif feed_data.title.value == 'Vio Blog':
             entries = feed_data.entries
             assert entries[0].title.value == 'test one'
             source = feed_data.entries[0].source
             assert source.title.value == 'Source Test'
+            assert result.icon_url == 'http://rsstest.com/images/favicon.ico'
+            assert result.hints == {
+                'ttl': '10',
+                'lastBuildDate': datetime.datetime(2002, 9, 7, 0, 0, 1,
+                                                   tzinfo=utc)
+            }
+        elif feed_data.title.value == 'Favicon Test':
+            assert result.icon_url == 'http://favicontest.com/favicon.ico'
 
 
 def test_sort_entries():
@@ -192,8 +250,23 @@ def test_sort_entries():
     urllib2.install_opener(my_opener)
     feeds = ['http://reversedentries.com/feed/atom']
     crawler = iter(crawl(feeds, 4))
-    url, feed, hints = next(crawler)
+    result = next(crawler)
+    url, feed, hints = result
+    assert url == result.url
+    assert feed is result.feed
+    assert hints == result.hints
     assert feed.entries[0].updated_at > feed.entries[1].updated_at
+
+
+def test_get_feed():
+    my_opener = urllib2.build_opener(TestHTTPHandler)
+    urllib2.install_opener(my_opener)
+    result = get_feed('http://vio.atomtest.com/feed/atom')
+    feed = result.feed
+    assert feed.title.value == 'Atom Test'
+    assert len(feed.entries) == 2
+    assert result.hints is None
+    assert result.icon_url is not None
 
 
 def test_crawl_error():
@@ -209,3 +282,33 @@ def test_crawl_error():
     generator = crawl(feeds, 2)
     with raises(CrawlError):
         next(iter(generator))
+
+
+@mark.parametrize('subs', [
+    SubscriptionList(),
+    Category()
+])
+def test_add_as_subscription(subs):
+    feed = Feed(
+        id='urn:earthreader:test:test_subscription_set_subscribe',
+        title=Text(value='Feed title'),
+        links=[
+            Link(
+                relation='self',
+                mimetype='application/atom+xml',
+                uri='http://example.com/atom.xml'
+            )
+        ]
+    )
+    result = CrawlResult(
+        'http://example.com/atom.xml',
+        feed,
+        hints={},
+        icon_url='http://example.com/favicon.ico'
+    )
+    sub = result.add_as_subscription(subs)
+    assert len(subs) == 1
+    assert next(iter(subs)) is sub
+    assert sub.feed_uri == result.url
+    assert sub.label == feed.title.value
+    assert sub.icon_uri == result.icon_url
