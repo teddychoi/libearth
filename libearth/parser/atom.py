@@ -85,7 +85,6 @@ class AtomFeed(ElementBase):
         element = element[0]
         return element_type(element, self.xml_base).parse()
 
-
     def parse_multiple_element(self, element_type):
         elements = self.data.findall(element_type.get_element_uri())
         parsed_elements = []
