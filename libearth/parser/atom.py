@@ -73,8 +73,6 @@ class AtomFeed(ElementBase):
 
     def parse_element(self, element_type):
         element = self.data.findall(element_type.get_element_uri())
-        for element_ in element:
-            print element_.text
         num_of_element = len(element)
         if num_of_element > 1:
             raise ValueError('Multiple {0} elements exists'.format(
