@@ -94,6 +94,26 @@ class AtomFeed(ElementBase, RootElement):
         return feed
 
 
+class AtomEntry(ElementBase, RootElement):
+    element_name = 'entry'
+
+    def parse(self):
+        entry = Entry()
+        entry.id = self.parse_element(AtomId) or self.xml_base
+        entry.title = self.parse_element(AtomTitle)
+        entry.updated_at = self.parse_element(AtomUpdated)
+        entry.authors = self.parse_multiple_element(AtomAuthor)
+        entry.categories = self.parse_multiple_element(AtomCategory)
+        entry.contributors = self.parse_multiple_element(AtomContributor)
+        entry.links = self.parse_multiple_element(AtomLink)
+        entry.content = self.parse_element(AtomContent)
+        entry.published_at = self.parse_element(AtomPublished)
+        entry.rights = self.parse_element(AtomRights)
+        entry.source = atom_get_source_tag(self.data, self.xml_base)
+        entry.summary = self.parse_element(AtomSummary)
+        return entry
+
+
 class AtomTextConstruct(ElementBase):
 
     def parse(self):
@@ -261,11 +281,10 @@ def parse_atom(xml, feed_url, parse_entry=True):
 
     """
     root = fromstring(normalize_xml_encoding(xml))
-    feed_data = AtomFeed(root, feed_url).parse()
+    feed = AtomFeed(root, feed_url)
+    feed_data = feed.parse()
     if parse_entry:
-        entries = root.findall('{' + XMLNS_ATOM + '}' + 'entry')
-        entries_data = atom_get_entry_data(entries, feed_url)
-        feed_data.entries = entries_data
+        feed_data.entries = feed.parse_multiple_element(AtomEntry)
     return feed_data, None
 
 
