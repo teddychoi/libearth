@@ -51,6 +51,55 @@ class ElementBase(object):
             return default
 
 
+class AtomFeed(ElementBase):
+    element_name = 'feed'
+
+    def parse(self, xml_base=None):
+        feed = Feed()
+        feed.id = self.parse_element(AtomId, xml_base) or xml_base
+        feed.title = self.parse_element(AtomTitle, None)
+        feed.updated_at = self.parse_element(AtomUpdated, None)
+        feed.authors = self.parse_multiple_element(AtomAuthor, xml_base)
+        feed.categories = self.parse_multiple_element(AtomCategory, xml_base)
+        feed.contributors = self.parse_multiple_element(AtomContributor,
+                                                        xml_base)
+        feed.links = self.parse_multiple_element(AtomLink, xml_base)
+        feed.generator = self.parse_element(AtomGenerator, xml_base)
+        feed.icon = self.parse_element(AtomIcon, xml_base)
+        feed.logo = self.parse_element(AtomLogo, xml_base)
+        feed.rights = self.parse_element(AtomRights, None)
+        feed.subtitle = self.parse_element(AtomSubtitle, None)
+        return feed
+
+    def parse_element(self, element_type, xml_base):
+        element = self.data.findall(element_type.get_element_uri())
+        for element_ in element:
+            print element_.text
+        num_of_element = len(element)
+        if num_of_element > 1:
+            raise ValueError('Multiple {0} elements exists'.format(
+                element_type.get_element_uri()
+            ))
+        elif num_of_element == 0:
+            return None
+        element = element[0]
+        if element_type.need_xml_base:
+            return element_type(element).parse(xml_base)
+        else:
+            return element_type(element).parse()
+
+
+    def parse_multiple_element(self, element_type, xml_base):
+        elements = self.data.findall(element_type.get_element_uri())
+        parsed_elements = []
+        for element in elements:
+            if element_type.need_xml_base:
+                parsed_elements.append(element_type(element).parse(xml_base))
+            else:
+                parsed_elements.append(element_type(element).parse())
+        return parsed_elements
+
+
 class AtomTextConstruct(ElementBase):
 
     def parse(self):
@@ -225,7 +274,7 @@ def parse_atom(xml, feed_url, parse_entry=True):
 
     """
     root = fromstring(normalize_xml_encoding(xml))
-    feed_data = atom_get_feed_data(root, feed_url)
+    feed_data = AtomFeed(root).parse(feed_url)
     if parse_entry:
         entries = root.findall('{' + XMLNS_ATOM + '}' + 'entry')
         entries_data = atom_get_entry_data(entries, feed_url)
