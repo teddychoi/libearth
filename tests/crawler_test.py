@@ -41,7 +41,6 @@ atom_xml = """
     <icon>http://vio.atomtest.com/images/icon.jpg</icon>
     <logo>http://vio.atomtest.com/images/logo.jpg</logo>
     <rights>vio company all rights reserved</rights>
-    <updated>2013-08-10T15:27:04Z</updated>
     <entry xml:base="http://basetest.com/">
         <id>two</id>
         <author>

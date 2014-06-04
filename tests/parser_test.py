@@ -217,7 +217,6 @@ atom_xml = """
     <title type="text">Atom Test</title>
     <subtitle type="text">Earth Reader</subtitle>
     <id>http://vio.atomtest.com/feed/atom</id>
-    <updated>2013-08-19T07:49:20+07:00</updated>
     <link rel="alternate" type="text/html" href="http://vio.atomtest.com/" />
     <link rel="self" type="application/atom+xml"
         href="http://vio.atomtest.com/feed/atom" />
@@ -388,7 +387,6 @@ def test_atom_parser():
 atom_without_id = '''
     <feed xmlns="http://www.w3.org/2005/Atom">
         <title type="text">Atom Test</title>
-        <updated>2013-08-19T07:49:20+07:00</updated>
         <link rel="alternate" type="text/html" href="http://example.com/" />
         <link rel="self" type="application/atom+xml"
             href="http://example.com/atom.xml" />
@@ -399,7 +397,6 @@ atom_without_id = '''
 atom_without_id2 = '''
     <feed xmlns="http://www.w3.org/2005/Atom">
         <title type="text">Atom Test</title>
-        <updated>2013-08-19T07:49:20+07:00</updated>
         <link rel="alternate" type="text/html" href="http://example.com/" />
         <updated>2013-08-10T15:27:04Z</updated>
     </feed>
