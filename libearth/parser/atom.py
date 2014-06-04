@@ -109,9 +109,29 @@ class AtomEntry(ElementBase, RootElement):
         entry.content = self.parse_element(AtomContent)
         entry.published_at = self.parse_element(AtomPublished)
         entry.rights = self.parse_element(AtomRights)
-        entry.source = atom_get_source_tag(self.data, self.xml_base)
+        entry.source = self.parse_element(AtomSource)
         entry.summary = self.parse_element(AtomSummary)
         return entry
+
+
+class AtomSource(ElementBase, RootElement):
+    element_name = 'source'
+
+    def parse(self):
+        source = Source()
+        source.authors = self.parse_multiple_element(AtomAuthor)
+        source.categories = self.parse_multiple_element(AtomCategory)
+        source.contributors = self.parse_multiple_element(AtomContributor)
+        source.links = self.parse_multiple_element(AtomLink)
+        source.id = self.parse_element(AtomId)
+        source.title = self.parse_element(AtomTitle)
+        source.updated_at = self.parse_element(AtomUpdated)
+        source.generator = self.parse_element(AtomGenerator)
+        source.icon = self.parse_element(AtomIcon)
+        source.logo = self.parse_element(AtomLogo)
+        source.rights = self.parse_element(AtomRights)
+        source.subtitle = self.parse_element(AtomSubtitle)
+        return source
 
 
 class AtomTextConstruct(ElementBase):
