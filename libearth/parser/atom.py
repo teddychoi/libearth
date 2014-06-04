@@ -55,9 +55,9 @@ class ElementBase(object):
 class AtomFeed(ElementBase):
     element_name = 'feed'
 
-    def parse(self, xml_base=None):
+    def parse(self):
         feed = Feed()
-        feed.id = self.parse_element(AtomId) or xml_base
+        feed.id = self.parse_element(AtomId) or self.xml_base
         feed.title = self.parse_element(AtomTitle)
         feed.updated_at = self.parse_element(AtomUpdated)
         feed.authors = self.parse_multiple_element(AtomAuthor)
@@ -110,7 +110,7 @@ class AtomTextConstruct(ElementBase):
 class AtomPersonConstruct(ElementBase):
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         person = Person()
         xml_base = self._get_xml_base()
         for child in self.data:
@@ -133,7 +133,7 @@ class AtomId(ElementBase):
     element_name = 'id'
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         xml_base = self._get_xml_base()
         return urlparse.urljoin(xml_base, self.data.text)
 
@@ -187,7 +187,7 @@ class AtomLink(ElementBase):
     element_name = 'link'
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         link = Link()
         xml_base = self._get_xml_base()
         link.uri = urlparse.urljoin(xml_base, self.data.get('href'))
@@ -203,7 +203,7 @@ class AtomGenerator(ElementBase):
     element_name = 'generator'
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         generator = Generator()
         xml_base = self._get_xml_base()
         generator.value = self.data.text
@@ -217,7 +217,7 @@ class AtomIcon(ElementBase):
     element_name = 'icon'
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         xml_base = self._get_xml_base()
         return urlparse.urljoin(xml_base, self.data.text)
 
@@ -226,7 +226,7 @@ class AtomLogo(ElementBase):
     element_name = 'logo'
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         xml_base = self._get_xml_base()
         return urlparse.urljoin(xml_base, self.data.text)
 
@@ -235,7 +235,7 @@ class AtomContent(ElementBase):
     element_name = 'content'
     need_xml_base = True
 
-    def parse(self, xml_base=None):
+    def parse(self):
         content = Content()
         content.value = self.data.text
         content_type = self.data.get('type')
